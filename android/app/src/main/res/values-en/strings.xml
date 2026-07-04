@@ -37,6 +37,25 @@
     <string name="settings_roi_desc">The screen region where opponent names are read. If you have a calibrated value, this resets it to the default.</string>
     <string name="settings_roi_reset">Reset ROI to default</string>
     <string name="settings_roi_reset_done">Reset to default ✓</string>
+    <string name="settings_roi_calibrate">Calibrate name region (on screen)</string>
+    <string name="settings_roi_calibrate_need_overlay">Overlay permission is required to show the calibration screen over the game.</string>
+
+    <!-- ===== Diagnostics mode (P14 field-test support) ===== -->
+    <string name="settings_diag_title">Diagnostics mode</string>
+    <string name="settings_diag_desc">Shows why recognition fails, right away. Displays the last OCR text, match result, last-seen time, and OCR rate on the overlay. Applies from the next run.</string>
+    <string name="settings_diag_on">Diagnostic strip: on</string>
+    <string name="settings_diag_off">Diagnostic strip: off</string>
+
+    <!-- ===== ROI calibration overlay (P14) ===== -->
+    <string name="calib_hint">Fit the box over the opponent name plate. Drag inside to move, drag a corner to resize.</string>
+    <string name="calib_single">Single (1)</string>
+    <string name="calib_doubles">Doubles (2)</string>
+    <string name="calib_reset">Reset</string>
+    <string name="calib_save">Save</string>
+    <string name="calib_close">Close</string>
+
+    <!-- ===== Diagnostic strip (overlay) ===== -->
+    <string name="diag_title">Diag</string>
 
     <!-- ===== Data update (P13, DESIGN.md 4-6) ===== -->
     <string name="settings_data_title">Pokémon data update</string>

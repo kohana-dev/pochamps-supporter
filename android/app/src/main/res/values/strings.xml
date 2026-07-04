@@ -37,6 +37,25 @@
     <string name="settings_roi_desc">상대 이름을 읽는 화면 영역입니다. 실기기 화면에 맞춰 보정한 값이 있으면 기본값으로 되돌립니다.</string>
     <string name="settings_roi_reset">ROI 기본값으로 리셋</string>
     <string name="settings_roi_reset_done">기본값으로 되돌림 ✓</string>
+    <string name="settings_roi_calibrate">이름 영역 보정 (화면에서 직접)</string>
+    <string name="settings_roi_calibrate_need_overlay">보정 화면을 게임 위에 띄우려면 오버레이 권한이 필요합니다.</string>
+
+    <!-- ===== 진단 모드(P14 필드테스트 지원) ===== -->
+    <string name="settings_diag_title">진단 모드</string>
+    <string name="settings_diag_desc">인식이 안 될 때 원인을 바로 보여줍니다. 오버레이에 마지막 OCR 원문·매칭 결과·인식 시각·OCR 빈도를 표시합니다. 다음 실행부터 적용됩니다.</string>
+    <string name="settings_diag_on">진단 스트립 표시 켜짐</string>
+    <string name="settings_diag_off">진단 스트립 표시 꺼짐</string>
+
+    <!-- ===== ROI 보정 오버레이(P14) ===== -->
+    <string name="calib_hint">상대 이름표 위에 사각형을 맞추세요. 안쪽을 끌어 이동, 모서리를 끌어 크기 조절.</string>
+    <string name="calib_single">싱글 (1개)</string>
+    <string name="calib_doubles">더블 (2개)</string>
+    <string name="calib_reset">초기화</string>
+    <string name="calib_save">저장</string>
+    <string name="calib_close">닫기</string>
+
+    <!-- ===== 진단 스트립(오버레이) ===== -->
+    <string name="diag_title">진단</string>
 
     <!-- ===== 데이터 갱신(P13, DESIGN.md 4-6) ===== -->
     <string name="settings_data_title">포켓몬 데이터 업데이트</string>

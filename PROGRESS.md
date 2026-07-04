@@ -1040,3 +1040,72 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 ### 남은 운영 단계(사용자)
 - **GitHub 원격 생성 + push**(미수행) → **Settings→Pages** 활성화 → `.../data/dist/` URL 을 `DATA_UPDATE_BASE_URL` 에 넣고 릴리스 빌드.
 - 이후 데이터 갱신 = `build_release.py` 재실행 → `data/dist/` 커밋·push → Pages 반영 → 앱 "데이터 업데이트" 버튼.
+
+---
+
+## P14 — 필드테스트 지원 도구: 인앱 ROI 보정 + 진단 패널 ✅ 완료 (2026-07-05)
+
+> **목적**: 실기기에서 ROI 가 어긋나거나 인식이 안 될 때, 사용자가 **adb 없이 폰에서 직접** 진단·보정.
+> FIELD_TEST.md 의 "ROI 보정 = adb 수동 절차" 를 앱 내 UI 로 대체(adb 는 고급 대안으로 격하).
+
+### 작업 1 — 인앱 ROI 보정 오버레이
+
+- **`RoiEditLogic`(순수 JVM)**: 보정 오버레이의 좌표 변환 전부를 담는다(Android 의존성 0).
+  - `move`(밴드 이동 — 크기 보존 + 화면 [0,1] 클램프), `resize`(모서리 핸들 — 반대변 앵커 고정 + `MIN_SIZE`(0.02) + 경계 클램프),
+    `resizeBandCount`(싱글1↔더블2 탭 전환, 기존 밴드 보존), `defaultRois`(초기화). 픽셀 delta → 화면비율 rect.
+- **`RoiCalibrationOverlay`(Compose 오버레이 창)**: 게임 위 **전체화면 반투명 편집기**.
+  - 현재 RoiConfig 밴드를 색 테두리 사각형(싱글 1/더블 2)으로 표시 + **4모서리 리사이즈 핸들**. 안쪽 드래그=이동.
+  - 하단 컨트롤 바: **싱글/더블 탭** + **초기화**(기본값 복원)/**저장**/**닫기**.
+  - **터치 수신 위해 focusable+전체화면 창**(P5 IME 토글과 같은 패턴). 닫으면 창 제거로 게임 터치 원복. 카드 오버레이와 독립 창.
+- **저장 즉시 반영**: `RecognitionPipeline` 의 `roiConfig`(고정) → **`roiConfigProvider: () -> RoiConfig`(공급자)** 로 변경.
+  프레임마다 `PrefsRoiConfigStore.effective()` 를 다시 읽으므로, 보정 저장이 **다음 프레임부터** 새 ROI 로 반영(재구성 불필요).
+- **진입**: `CaptureService.ACTION_CALIBRATE`(MediaProjection 불필요 — SYSTEM_ALERT_WINDOW 만). 설정 "이름 영역 보정" 버튼 → 서비스 인텐트.
+  보정 전용으로 떠 있으면 닫을 때 서비스 종료(카드 오버레이/캡처 세션 없을 때).
+
+### 작업 2 — 진단 패널 (adb 대체)
+
+- **`DiagState`/`SlotDiag`/`OcrRateMeter`(순수 JVM)**: 진단 상태 모델 + 포매팅 + OCR 빈도 슬라이딩윈도우 계수기.
+  - `SlotDiag.outcome`: **빈텍스트(EMPTY_TEXT)** / **미매칭텍스트(UNMATCHED_TEXT)** / **매칭(MATCHED)** 3분류 →
+    인식 실패 시 원인(ROI 이탈·글자잘림 vs 표시명 불일치·닉네임)을 사용자가 바로 판단.
+  - `formatSlot`(예 `S0 gyarados d1` / `S1 OCR:빈텍스트` / `S0 미매칭 "..."`), `formatLastSeen`("방금/n초 전/인식 없음"), `formatRate`("OCR n.n회/s"). 긴 텍스트 말줄임.
+- **`RecognitionPipeline` 진단 콜백**: `onDiag: (DiagState) -> Unit` 추가(기본 no-op). 프레임마다 슬롯별 OCR 원문·매칭 root/editDistance·인식시각·OCR 빈도를 UI 로 넘긴다.
+  기존 `diag` logcat 로그와 **동일 정보**를 UI 로 노출. release 에서도 동작(토글 기본 off — 문자열 조립뿐, 성능 영향 무시 가능).
+- **오버레이 진단 스트립**(`DiagnosticStrip` @Compose): 진단 모드 on 시 카드 밑에 소형 패널. 슬롯별 한 줄(매칭=초록/빈텍스트=빨강/미매칭=주황) + 마지막 인식 경과 + OCR 회/s.
+  카드가 없어도(빈텍스트 계속) 스트립은 뜨므로 원인 판단 가능.
+- **설정 토글**: `AppSettings.diagnosticsEnabled`(기본 off). MainActivity 설정에 "진단 모드" Switch. 다음 "시작" 세션부터 반영(서비스가 `setDiagnosticsEnabled`).
+
+### 테스트 (+28, 순수 JVM)
+- `RoiEditLogicTest`(15): move(이동·크기보존·경계정지), resize(앵커고정·최소크기·경계), resizeBandCount(1↔2·보존), defaultRois, RoiConfig 직렬화 왕복 호환.
+- `DiagStateTest`(13): outcome 3분류, formatSlot(매칭/빈/미매칭/말줄임), formatLastSeen, formatRate, OcrRateMeter(윈도우·만료·reset), 다중슬롯 정렬.
+
+### 에뮬레이터 E2E (실측 — AVD `Kohana_QA_API_35`, 가로 1280x720)
+- **보정 오버레이 렌더**: `ACTION_CALIBRATE` → 전체화면 반투명 편집기 표시 확인(스크린샷). 더블 기본값 밴드 2개(초록/파랑) + 4모서리 핸들 + 힌트 배너 + 싱글/더블 탭 + 초기화/저장/닫기 컨트롤 바.
+  logcat: `RoiCalibrationOverlay.CalibrationRoot` 렌더, 오버레이 창이 `imeInputTarget`/`imeControlTarget`(=focusable 입력 수신) 확인.
+- **진단 스트립(빈텍스트 원인 표시)**: 진단 on + 캡처(더블 기본 ROI) + 싱글배틀 갸라도스 화면 → 스트립 `Diag / OCR 0.7회/s / S0 OCR:빈텍스트(빨강) / S1 OCR:빈텍스트(빨강) / 인식 없음`.
+  = 싱글배틀인데 더블 ROI 라 이름표 미포함 → **빈텍스트 원인을 사용자가 즉시 확인**(→ 보정 필요 판단).
+- **저장→라이브 ROI 반영**: ROI 오버라이드를 **싱글 밴드**(`0.70,0.02,0.94,0.30`, 보정 저장과 동일 경로)로 교체 → 캡처 재시작 →
+  logcat `diag roi#0 ocr=[가라도스, 100] match=Matched(root=gyarados, editDistance=1)`. 스트립 `S0 gyarados d1`(초록) + `방금 인식`, 오버레이 카드 "갸라도스"(물/비행) 표시.
+  = **빈텍스트(더블 ROI) → 정확 인식(싱글 ROI)** 전환을 실 파이프라인에서 실증(라이브 ROI 반영 + 진단 원인분류 색전이 동시 확인).
+- 디버그 전용 `CalibrationLauncherActivity`(설정 UI 스크롤 대신 adb `am start` 로 보정/진단 트리거 — 실제 앱과 동일 경로) 추가. **release 미포함 재확인**.
+
+### 코드 변경 요약
+- `capture/RoiEditLogic.kt`(신규, 순수): 드래그/리사이즈/밴드개수 좌표 변환.
+- `capture/DiagState.kt`(신규, 순수): 진단 모델·포매팅·OCR 빈도 계수기.
+- `overlay/RoiCalibrationOverlay.kt`(신규): 전체화면 보정 오버레이 창(focusable).
+- `capture/RecognitionPipeline.kt`: `roiConfig`→`roiConfigProvider`(라이브 반영), `onDiag` 콜백 + 슬롯 진단 조립.
+- `overlay/OverlayRenderer.kt`: `setDiagnosticsEnabled`/`updateDiag` + 스트립 렌더.
+- `overlay/OverlayCard.kt`: `DiagnosticStrip` @Compose.
+- `capture/CaptureService.kt`: `ACTION_CALIBRATE`+`showCalibrationOverlay`, 파이프라인 provider/onDiag 배선, 진단 토글 반영.
+- `ui/MainActivity.kt`: 설정에 "이름 영역 보정" 버튼 + "진단 모드" 토글.
+- `data/AppSettings.kt`: `diagnosticsEnabled`.
+- strings(ko/en): 보정/진단/스트립 문구.
+- 디버그 전용: `debug/CalibrationLauncherActivity.kt` + debug manifest.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 153/153, failures 0**(P13 125 + P14 28: RoiEditLogic 15 + DiagState 13).
+- `:app:assembleDebug`/`:app:assembleRelease`(R8, arm64) → 둘 다 성공. **release 16.6MB(불변), 디버그 활동(CalibrationLauncher/SampleImage) release 미포함**. 보정/진단 프로덕션 코드는 release 포함(R8 mapping 확인).
+- 에뮬 실측: 보정 오버레이 열기·진단 스트립 빈텍스트→매칭 색전이·라이브 ROI 반영(갸라도스 인식) 스크린샷 증거.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 59.94fps 실시간 스트림·지연/발열 · K1 대전화면 직접 녹화 · 리전폼/닉네임 문자열 · Champions-verbatim EULA.
+  (에뮬 드래그→저장 인터랙션은 SystemUI 부하로 탭 미전달 — 좌표 변환 로직은 JVM 15테스트로 완전 커버, 저장→반영은 실 파이프라인으로 실증.)

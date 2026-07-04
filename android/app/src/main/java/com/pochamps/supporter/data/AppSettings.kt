@@ -21,10 +21,19 @@ class AppSettings(context: Context) {
             prefs.edit().putString(KEY_LANG, v).apply()
         }
 
+    /**
+     * 진단 모드(P14 필드테스트 지원). 켜면 오버레이에 소형 진단 스트립을 표시한다
+     * (마지막 OCR 원문·매칭 root/editDistance·인식 시각·OCR 빈도). 기본 off(release 포함).
+     */
+    var diagnosticsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DIAG, false)
+        set(value) { prefs.edit().putBoolean(KEY_DIAG, value).apply() }
+
     companion object {
         const val DEFAULT_LANG = "ko"
         private const val PREFS_NAME = "app_settings"
         private const val KEY_LANG = "capture_lang"
+        private const val KEY_DIAG = "diagnostics_enabled"
 
         /** 언어 코드 → 사람이 읽는 이름(설정 UI). */
         val LANGUAGE_LABELS: Map<String, String> = mapOf(

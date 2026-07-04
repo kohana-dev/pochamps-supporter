@@ -124,6 +124,15 @@ class OverlayRenderer(
     private val showBattleNamesHint = mutableStateOf(false)
     private var battleNamesHintShown = false
 
+    /**
+     * 진단 모드(P14). true 면 오버레이 하단에 소형 진단 스트립을 표시한다(설정 토글).
+     * 카드가 없어도(빈 텍스트 계속) 스트립은 뜨므로 필드테스트에서 원인 판단이 가능하다.
+     */
+    private val diagEnabled = mutableStateOf(false)
+
+    /** 최신 진단 스냅샷(진단 스트립 표시용). null=아직 없음. */
+    private val diagState = mutableStateOf<com.pochamps.supporter.capture.DiagState?>(null)
+
     init {
         savedStateController.performRestore(null)
         this.onRestart = onRestart
@@ -232,6 +241,16 @@ class OverlayRenderer(
     /** 배너 닫기(유저 탭 or 인식 성공 시). */
     fun dismissBattleNamesHint() {
         showBattleNamesHint.value = false
+    }
+
+    /** 진단 모드 on/off(설정 토글). off 면 스트립 숨김. */
+    fun setDiagnosticsEnabled(enabled: Boolean) {
+        diagEnabled.value = enabled
+    }
+
+    /** 진단 스냅샷 갱신(파이프라인 콜백 → 메인 스레드). 진단 모드 off 여도 저장만(표시 안 함). */
+    fun updateDiag(state: com.pochamps.supporter.capture.DiagState) {
+        diagState.value = state
     }
 
     fun destroy() {
@@ -373,7 +392,10 @@ class OverlayRenderer(
         }
 
         val hintVisible by showBattleNamesHint
-        if (slotOrder.isEmpty() && !hintVisible) return
+        val diagOn by diagEnabled
+        val diag by diagState
+        val diagVisible = diagOn && diag != null
+        if (slotOrder.isEmpty() && !hintVisible && !diagVisible) return
 
         // 자동 축소 타이머: 주기적으로 확장 시각을 확인해 무조작 N초 경과 슬롯을 CARD 로 축소.
         if (autoCollapseMs > 0) {
@@ -472,6 +494,11 @@ class OverlayRenderer(
                     onDismiss = { openSheet.value = null },
                 )
                 null -> Unit
+            }
+
+            // 진단 스트립(P14) — 설정 토글 on 일 때만. 카드 밑에 고정.
+            if (diagVisible) {
+                diag?.let { DiagnosticStrip(it) }
             }
         }
     }

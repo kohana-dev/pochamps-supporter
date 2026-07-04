@@ -26,6 +26,7 @@ import com.pochamps.supporter.overlay.CandidateChoice
 import com.pochamps.supporter.overlay.OverlayCardData
 import com.pochamps.supporter.overlay.OverlayRenderer
 import com.pochamps.supporter.overlay.PrefsOverlayPositionStore
+import com.pochamps.supporter.overlay.RoiCalibrationOverlay
 import com.pochamps.supporter.overlay.SearchChoice
 import com.pochamps.supporter.overlay.SlotUiMeta
 import kotlinx.coroutines.CoroutineScope
@@ -55,6 +56,7 @@ import kotlin.concurrent.thread
 class CaptureService : Service() {
 
     private var overlay: OverlayRenderer? = null
+    private var calibrationOverlay: RoiCalibrationOverlay? = null
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var repository: PokedexRepository? = null
@@ -101,6 +103,15 @@ class CaptureService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_CALIBRATE -> {
+                // ROI 보정 오버레이(P14). MediaProjection 불필요 — SYSTEM_ALERT_WINDOW 만.
+                // 캡처 세션이 이미 떠 있으면 그 위에, 아니면 보정 전용으로 FGS+오버레이만 유지.
+                if (projection == null && captureManager == null) {
+                    startForegroundWithNotification(isDemo = true) // specialUse(토큰 없음) 타입으로 유지.
+                }
+                showCalibrationOverlay()
                 return START_NOT_STICKY
             }
         }
@@ -160,6 +171,8 @@ class CaptureService : Service() {
             onRestart = { restartCapture() },
         )
         renderer.show()
+        // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
+        renderer.setDiagnosticsEnabled(AppSettings(this).diagnosticsEnabled)
         overlay = renderer
     }
 
@@ -228,6 +241,28 @@ class CaptureService : Service() {
         }
     }
 
+    /**
+     * ROI 보정 오버레이 표시(P14). 저장된 오버라이드(없으면 기본값)로 편집을 시작하고,
+     * 저장 시 [PrefsRoiConfigStore] 에 넣는다 → 파이프라인이 다음 프레임부터 새 ROI 사용.
+     */
+    private fun showCalibrationOverlay() {
+        if (calibrationOverlay != null) return
+        val store = PrefsRoiConfigStore(this)
+        val calib = RoiCalibrationOverlay(
+            context = this,
+            initial = store.effective(),
+            onSave = { cfg -> store.save(cfg) },
+            onClose = {
+                calibrationOverlay?.dismiss()
+                calibrationOverlay = null
+                // 보정 전용으로 떠 있었고(캡처 세션·카드 오버레이 모두 없음) 서비스 종료.
+                if (projection == null && captureManager == null && overlay == null) stopSelf()
+            },
+        )
+        calib.show()
+        calibrationOverlay = calib
+    }
+
     // --- MediaProjection 세션 ---
 
     /**
@@ -278,13 +313,14 @@ class CaptureService : Service() {
             repository = repo
 
             val ocr = OcrEngine(language = captureLang).also { ocrEngine = it }
-            val roiConfig = PrefsRoiConfigStore(this).effective()
+            // ROI 는 프레임마다 store 를 다시 읽는다(인앱 보정 저장 즉시 반영, P14).
+            val roiStore = PrefsRoiConfigStore(this)
 
             val pipe = RecognitionPipeline(
                 scope = pipelineScope,
                 repository = repo,
                 ocr = ocr,
-                roiConfig = roiConfig,
+                roiConfigProvider = { roiStore.effective() },
                 lang = captureLang,
                 format = BattleFormat.DOUBLES,
                 onCardUpdate = { slot, card, meta ->
@@ -301,6 +337,10 @@ class CaptureService : Service() {
                             ),
                         )
                     }
+                },
+                // 진단 스냅샷(P14) → 오버레이 진단 스트립(메인 스레드). 진단 모드 off 여도 저장만.
+                onDiag = { state ->
+                    mainHandler.post { overlay?.updateDiag(state) }
                 },
             )
             pipe.start()
@@ -448,6 +488,8 @@ class CaptureService : Service() {
         projection = null
         overlay?.destroy()
         overlay = null
+        calibrationOverlay?.dismiss()
+        calibrationOverlay = null
         super.onDestroy()
     }
 
@@ -460,6 +502,7 @@ class CaptureService : Service() {
         const val EXTRA_RESULT_DATA = "extra_result_data"
         const val ACTION_STOP = "com.pochamps.supporter.action.STOP"
         const val ACTION_DEMO = "com.pochamps.supporter.action.DEMO"
+        const val ACTION_CALIBRATE = "com.pochamps.supporter.action.CALIBRATE"
 
         /** 데모 순환 대상 한 종(표시 key + 후보 시트용 root). root=null 이면 단일 후보. */
         private data class DemoTarget(val key: String, val root: String?)
@@ -487,6 +530,10 @@ class CaptureService : Service() {
         /** 데모 카드 표시용 Intent(MediaProjection 없이 오버레이 UI 검증). */
         fun demoIntent(context: Context): Intent =
             Intent(context, CaptureService::class.java).apply { action = ACTION_DEMO }
+
+        /** ROI 보정 오버레이 표시 Intent(P14, MediaProjection 불필요). */
+        fun calibrateIntent(context: Context): Intent =
+            Intent(context, CaptureService::class.java).apply { action = ACTION_CALIBRATE }
 
         /** 서비스 중지 Intent. */
         fun stopIntent(context: Context): Intent =

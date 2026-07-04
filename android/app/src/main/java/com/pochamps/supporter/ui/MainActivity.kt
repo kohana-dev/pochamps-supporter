@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -286,6 +288,26 @@ private fun SettingsSection() {
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(8.dp))
+            // P14: 인앱 ROI 보정 오버레이 진입. 오버레이 권한 필요(보정 창을 게임 위에 띄움).
+            Button(
+                enabled = Settings.canDrawOverlays(context),
+                onClick = {
+                    ContextCompat.startForegroundService(
+                        context,
+                        com.pochamps.supporter.capture.CaptureService.calibrateIntent(context),
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.settings_roi_calibrate))
+            }
+            if (!Settings.canDrawOverlays(context)) {
+                Text(
+                    stringResource(R.string.settings_roi_calibrate_need_overlay),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = {
                 PrefsRoiConfigStore(context).clear()
                 roiResetDone = true
@@ -297,8 +319,42 @@ private fun SettingsSection() {
             }
 
             Spacer(Modifier.height(16.dp))
+            DiagnosticsToggle()
+
+            Spacer(Modifier.height(16.dp))
             DataUpdateSection()
         }
+    }
+}
+
+/**
+ * 진단 모드 토글(P14 필드테스트 지원). 켜면 오버레이에 소형 진단 스트립이 표시된다
+ * (마지막 OCR 원문·매칭·인식 시각·OCR 빈도). 다음 "시작" 세션부터 반영(서비스가 로드).
+ */
+@Composable
+private fun DiagnosticsToggle() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    var enabled by remember { mutableStateOf(settings.diagnosticsEnabled) }
+
+    Text(stringResource(R.string.settings_diag_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(R.string.settings_diag_desc), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text(
+            if (enabled) stringResource(R.string.settings_diag_on)
+            else stringResource(R.string.settings_diag_off),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = enabled,
+            onCheckedChange = {
+                settings.diagnosticsEnabled = it
+                enabled = it
+            },
+        )
     }
 }
 

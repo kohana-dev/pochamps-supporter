@@ -18,6 +18,16 @@
             android:excludeFromRecents="true"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.PochampsSupporter" />
+
+        <!--
+          P14 E2E 검증 전용(디버그 한정). ROI 보정 오버레이 진입/진단 모드 토글을 adb 로 트리거.
+          설정 UI 스크롤(에뮬 부하 시 SystemUI ANR 로 불안정)을 우회하되 실제 앱과 동일 경로를 사용.
+        -->
+        <activity
+            android:name=".debug.CalibrationLauncherActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.NoDisplay" />
     </application>
 
 </manifest>

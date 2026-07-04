@@ -259,6 +259,48 @@ fun BattleNamesHintBanner(
     }
 }
 
+/**
+ * 진단 스트립(P14, adb 대체). 진단 모드 on 일 때 카드 밑에 뜨는 소형 패널.
+ * 슬롯별 마지막 OCR 원문/매칭 root+editDistance, 마지막 인식 경과, OCR 빈도(회/s)를 표시한다.
+ * 인식이 계속 실패할 때 원인(빈 텍스트 vs 미매칭)을 사용자가 바로 본다.
+ */
+@Composable
+fun DiagnosticStrip(state: com.pochamps.supporter.capture.DiagState) {
+    Column(
+        modifier = Modifier
+            .widthIn(min = 180.dp, max = 320.dp)
+            .background(Color(0xF0_101820), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.diag_title), color = AccentColor, fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(
+                com.pochamps.supporter.capture.DiagState.formatRate(state),
+                color = SubTextColor, fontSize = 10.sp,
+            )
+        }
+        // 슬롯별 한 줄(정렬).
+        state.slots.keys.sorted().forEach { slot ->
+            val d = state.slots[slot] ?: return@forEach
+            val color = when (d.outcome) {
+                com.pochamps.supporter.capture.SlotDiag.Outcome.MATCHED -> PosDelta
+                com.pochamps.supporter.capture.SlotDiag.Outcome.EMPTY_TEXT -> NegDelta
+                com.pochamps.supporter.capture.SlotDiag.Outcome.UNMATCHED_TEXT -> Color(0xFF_FFB74D)
+            }
+            Text(
+                com.pochamps.supporter.capture.DiagState.formatSlot(d),
+                color = color, fontSize = 11.sp,
+            )
+        }
+        Text(
+            com.pochamps.supporter.capture.DiagState.formatLastSeen(state),
+            color = SubTextColor, fontSize = 10.sp,
+        )
+    }
+}
+
 @Composable
 private fun ExpandedPanel(ex: OverlayCardData.ExpandedData, onInteract: () -> Unit) {
     Column(

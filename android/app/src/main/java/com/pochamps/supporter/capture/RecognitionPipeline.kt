@@ -34,23 +34,36 @@ import kotlinx.coroutines.launch
  * @param scope 파이프라인 워커 코루틴 스코프(서비스 수명과 함께 취소).
  * @param repository 로컬 DB(매칭/카드 조립).
  * @param ocr OCR 엔진(언어별 recognizer).
- * @param roiConfig 감시/크롭할 ROI 설정.
+ * @param roiConfigProvider 감시/크롭할 ROI 설정 **공급자**. 프레임마다 최신값을 읽으므로
+ *   인앱 ROI 보정 저장(P14)이 다음 프레임부터 즉시 반영된다(재구성 불필요).
  * @param lang 표시 언어(카드 데이터 조립용).
  * @param format 배틀 포맷(사용률 소스).
  * @param onCardUpdate 슬롯 카드 갱신 콜백(구현이 메인 스레드로 post). (slot, cardData, meta).
+ * @param onDiag 진단 스냅샷 콜백(P14 진단 패널). 프레임 처리 후 슬롯별 [SlotDiag] + OCR 빈도를 넘긴다.
+ *   기본 no-op(진단 모드 off 여도 오버헤드 무시 가능 — 문자열 조립뿐).
  */
 class RecognitionPipeline(
     private val scope: CoroutineScope,
     private val repository: PokedexRepository,
     private val ocr: OcrEngine,
-    private val roiConfig: RoiConfig,
+    private val roiConfigProvider: () -> RoiConfig,
     private val lang: String,
     private val format: BattleFormat,
     private val frameGate: FrameGate = FrameGate(),
     private val cropper: RoiCropper = RoiCropper(),
     private val decider: PipelineDecider = PipelineDecider(),
     private val onCardUpdate: (slot: Int, card: OverlayCardData, meta: SlotMeta) -> Unit,
+    private val onDiag: (DiagState) -> Unit = {},
 ) {
+
+    /** OCR 실행 빈도 계수기(진단 패널 "회/s"). 단일 워커 스레드에서만 접근. */
+    private val rateMeter = OcrRateMeter()
+
+    /** 슬롯별 최신 진단 스냅샷(진단 패널 표시용). 단일 워커 스레드에서만 접근. */
+    private val slotDiags = HashMap<Int, SlotDiag>()
+
+    /** 마지막 매칭 성공 시각(uptimeMs) — 진단 "n초 전 인식". */
+    private var lastMatchAtMs: Long = 0L
 
     /** 슬롯 카드 갱신에 딸려오는 메타(후보 선택 시트/바꾸기 진입점 노출용). */
     data class SlotMeta(
@@ -128,6 +141,8 @@ class RecognitionPipeline(
             var anyGatePassed = false
             var anyCropSucceeded = false
 
+            // 프레임마다 최신 ROI 설정을 읽는다(인앱 보정 저장 즉시 반영, P14).
+            val roiConfig = roiConfigProvider()
             for ((roiIndex, roi) in roiConfig.rois.withIndex()) {
                 val rect = roi.toPixels(frame.width, frame.height)
                 // [2] FrameGate: ROI 픽셀을 다운샘플해 변화 감지.
@@ -157,11 +172,33 @@ class RecognitionPipeline(
         try {
             // [4] OCR — 모든 라인 추출(단일 pickNameLine 대신 전체 라인).
             val lines = ocr.recognizeAllLines(crop)
+            // OCR 실행 빈도 계수(진단 패널 "회/s" — 발열/스로틀 판단).
+            val nowMs = android.os.SystemClock.uptimeMillis()
+            rateMeter.record(nowMs)
             if (DIAG) Log.i(TAG, "diag roi#$roiIndex ocr=${if (lines.isEmpty()) "-" else lines} crop=${crop.width}x${crop.height}")
-            if (lines.isEmpty()) return
+
+            if (lines.isEmpty()) {
+                // 빈 텍스트 진단(ROI 이탈/글자잘림/저대비 판단 근거).
+                emitDiag(SlotDiag(roiIndex, ocrLines = emptyList(), matchedRoot = null, editDistance = null, atMs = nowMs))
+                return
+            }
             // [5] 매칭 — 라인들 중 최적 매칭(UI 텍스트는 사전 매칭이 걸러줌, ROI 강건화 P12).
             val match = repository.matchBest(lines)
             if (DIAG) Log.i(TAG, "diag roi#$roiIndex match=$match")
+
+            // 진단 스냅샷(원문 라인 + 매칭 root/editDistance). 미매칭이면 root=null.
+            val matched = match as? com.pochamps.supporter.matching.MatchResult.Matched
+            if (matched != null) lastMatchAtMs = nowMs
+            emitDiag(
+                SlotDiag(
+                    slot = roiIndex,
+                    ocrLines = lines,
+                    matchedRoot = matched?.root,
+                    editDistance = matched?.editDistance,
+                    atMs = nowMs,
+                ),
+            )
+
             // 판정(순수 로직): 미매칭 유지 / 후보 갱신 / 동일 스킵.
             when (val action = decider.decide(roiIndex, match)) {
                 is PipelineAction.UpdateCard -> {
@@ -185,6 +222,19 @@ class RecognitionPipeline(
         }
     }
 
+    /** 슬롯 진단 갱신 후 전체 [DiagState] 를 콜백으로 넘긴다(워커 스레드에서 호출). */
+    private fun emitDiag(d: SlotDiag) {
+        slotDiags[d.slot] = d
+        onDiag(
+            DiagState(
+                slots = HashMap(slotDiags),
+                ocrRunsPerSec = rateMeter.ratePerSec(d.atMs),
+                lastRecognitionAtMs = lastMatchAtMs,
+                nowMs = d.atMs,
+            ),
+        )
+    }
+
     /** ROI 픽셀 영역을 읽어 FrameGate 용 다운샘플 그레이 서명을 만든다. */
     private fun roiSignature(frame: Bitmap, rect: PixelRect): IntArray {
         val pixels = IntArray(rect.width * rect.height)
@@ -197,6 +247,9 @@ class RecognitionPipeline(
         frameChannel.close()
         frameGate.reset()
         decider.reset()
+        rateMeter.reset()
+        slotDiags.clear()
+        lastMatchAtMs = 0L
     }
 
     private data class FrameJob(val bitmap: Bitmap, val timestampMs: Long)
