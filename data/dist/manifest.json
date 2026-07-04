@@ -1,0 +1,28 @@
+{
+  "manifestSchema": 1,
+  "dataVersion": "20260705",
+  "generatedAt": "2026-07-04T21:39:22Z",
+  "files": [
+    {
+      "name": "pokedex_db.json",
+      "url": "pokedex_db.json.gz",
+      "sha256": "77e79b81945c46e957c9aa9db016735372a366c2ba33606cf81f91f2bdcc8ecb",
+      "size": 989063,
+      "gzipSize": 177601
+    },
+    {
+      "name": "usage_db.json",
+      "url": "usage_db.json.gz",
+      "sha256": "10d5c897b8844d1bcccbd607818cd866dbdbfb6d4508097f3aea6a66de6720bb",
+      "size": 1795391,
+      "gzipSize": 149804
+    },
+    {
+      "name": "candidate_index.json",
+      "url": "candidate_index.json.gz",
+      "sha256": "fffe094f44134e421ae6863290e47939d18d8c2bc9daf78994b2916a651b87b1",
+      "size": 172418,
+      "gzipSize": 33829
+    }
+  ]
+}

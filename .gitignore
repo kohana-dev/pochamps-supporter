@@ -1,0 +1,27 @@
+# === Android / Gradle 빌드 산출물 ===
+android/build/
+android/app/build/
+android/.gradle/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+android/local.properties
+*.iml
+.idea/
+
+# APK/중간 산출물
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# === Python ===
+__pycache__/
+*.pyc
+
+# === 대용량 필드 샘플 영상(로컬 검증 전용, 저장소에 넣지 않음) ===
+# 출처/측정치는 field_samples/**/SOURCES.md 로 기록되어 있으므로 영상 원본은 재다운로드 가능.
+field_samples/video/*.mp4
+
+# === OS ===
+.DS_Store
