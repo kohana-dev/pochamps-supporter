@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 다른 앱 위에 오버레이 표시 (게임 위 정보 칩/카드) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 화면 캡처를 위한 포그라운드 서비스 (Android 14+ 필수 조합) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- 캡처 중 상태바 알림 노출 (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 원격 데이터 갱신(수동 버튼): manifest.json + gz 다운로드용 (DESIGN.md 4-6, P13).
+         base URL 미설정 시 실제 네트워크 호출 없음(갱신 비활성). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      데모 모드(MediaProjection 없이 오버레이 UI 만 검증) FGS 타입용.
+      Android 14+ 는 mediaProjection 타입 FGS 시작 시 실제 프로젝션 토큰을 요구하므로,
+      토큰 없는 데모 경로는 specialUse 타입으로 시작한다(아래 service <property> 로 사유 명시).
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PochampsSupporter">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          MediaProjection 캡처용 포그라운드 서비스.
+          Android 14+ 규정: foregroundServiceType="mediaProjection" 필수(누락 시 크래시).
+          Android 15 규정: SYSTEM_ALERT_WINDOW 앱이 이 FGS 를 시작하려면 보이는 오버레이가 먼저 떠 있어야 함.
+                          → 온보딩 흐름에서 "오버레이 먼저 → 서비스 시작" 순서 준수.
+          자동 시작(BOOT_COMPLETED) 불가 → 사용자 수동 시작만.
+          P3: ImageReader 프레임 수신 + OCR 파이프라인 실구현.
+        -->
+        <service
+            android:name=".capture.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|specialUse">
+            <!--
+              데모 모드는 MediaProjection 토큰이 없으므로 mediaProjection 타입으로 FGS 를
+              시작할 수 없다(Android 14+ SecurityException). 데모 경로는 specialUse 타입으로
+              전환해 시작한다. 아래 property 는 그 사유(오버레이 UI 데모).
+            -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="overlay_ui_demo_without_capture" />
+        </service>
+
+    </application>
+
+</manifest>

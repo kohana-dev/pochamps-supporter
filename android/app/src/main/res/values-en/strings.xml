@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PokeChamps Supporter</string>
+
+    <!-- ===== Onboarding (MainActivity) ===== -->
+    <string name="onboarding_title">PokeChamps Supporter</string>
+    <string name="onboarding_intro_title">What this app does</string>
+    <string name="onboarding_intro_body">During a battle it reads the opponent Pokémon name shown on screen and displays its type, ability, and top moves over the game.\n\n• Only shows information already visible on screen.\n• Does not read game memory or auto-input anything.</string>
+
+    <!-- ===== Legal notice (from K4 EULA research) ===== -->
+    <string name="onboarding_legal_title">Before you use this</string>
+    <string name="onboarding_legal_body">This app only displays opponent info already shown on screen; it never reads game memory, automates input, or modifies the game. However, The Pokémon Company (TPCi) terms and tournament rules broadly restrict unauthorized third-party software, and using assist tools in official ranked or Play! Pokémon (VGC) play may lead to disqualification.\n\n• Use for casual/practice only.\n• Close the app during official or tournament battles.\n• You alone bear the risk of any account penalty.</string>
+
+    <string name="onboarding_step_overlay">1. Overlay permission</string>
+    <string name="onboarding_overlay_granted">Granted ✓</string>
+    <string name="onboarding_overlay_needed">To draw info cards over the game, the \'Display over other apps\' permission is required.</string>
+    <string name="onboarding_overlay_open">Open permission settings</string>
+    <string name="onboarding_overlay_recheck">I granted it (re-check)</string>
+
+    <string name="onboarding_step_game">2. Game settings</string>
+    <string name="onboarding_game_title">Turn on battle names</string>
+    <string name="onboarding_game_body">In Pochamps → Settings, turn ON \'Display Battle Names\'.\nThe opponent name text must appear on screen to be recognized.</string>
+
+    <string name="onboarding_step_run">3. Run</string>
+    <string name="onboarding_start">Start (screen capture)</string>
+    <string name="onboarding_need_overlay_first">Grant the overlay permission first.</string>
+    <string name="onboarding_demo">Demo card (no capture)</string>
+    <string name="onboarding_running_title">Running</string>
+    <string name="onboarding_running_body">The overlay is shown over the game.\nA \'Capturing\' notification appears in the status bar.</string>
+    <string name="onboarding_stop">Stop</string>
+
+    <!-- ===== Settings ===== -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_language_title">Game language</string>
+    <string name="settings_language_desc">The language of opponent names shown in the game. The OCR recognizer and display language follow this value.\nChanges apply from the next run.</string>
+    <string name="settings_roi_title">Advanced: recognition region (ROI)</string>
+    <string name="settings_roi_desc">The screen region where opponent names are read. If you have a calibrated value, this resets it to the default.</string>
+    <string name="settings_roi_reset">Reset ROI to default</string>
+    <string name="settings_roi_reset_done">Reset to default ✓</string>
+
+    <!-- ===== Data update (P13, DESIGN.md 4-6) ===== -->
+    <string name="settings_data_title">Pokémon data update</string>
+    <string name="settings_data_desc">Download the latest data when the regulation or meta changes. The app also works offline with bundled data.</string>
+    <string name="settings_data_version_bundled">Current: bundled data</string>
+    <string name="settings_data_version_downloaded">Current: downloaded (version %1$s)</string>
+    <string name="settings_data_update_button">Update data</string>
+    <string name="settings_data_checking">Checking…</string>
+    <string name="settings_data_disabled">Remote update is not configured in this build (using bundled data).</string>
+    <string name="settings_data_uptodate">Already up to date (version %1$s).</string>
+    <string name="settings_data_updated">Updated: version %1$s. Applies from next start.</string>
+    <string name="settings_data_fail_network">Update failed (network). Keeping bundled data.</string>
+    <string name="settings_data_fail_manifest">Server data format error. Keeping bundled data.</string>
+    <string name="settings_data_fail_schema">This data version requires an app update.</string>
+    <string name="settings_data_fail_corrupt">Data verification failed (corrupt). Keeping bundled data.</string>
+
+    <!-- ===== Notification (FGS) ===== -->
+    <string name="notif_channel_name">Screen capture</string>
+    <string name="notif_channel_desc">Shown while PokeChamps Supporter reads on-screen information.</string>
+    <string name="notif_title">PokeChamps Supporter running</string>
+    <string name="notif_text">Displays info about the opponent Pokémon visible on screen.</string>
+
+    <!-- ===== Overlay card ===== -->
+    <string name="overlay_ability_prefix">Ability: </string>
+    <string name="overlay_more_detail">More ▸ (stats · matchups)</string>
+    <string name="overlay_change_candidate">Which one? Change ▸</string>
+    <string name="overlay_mega_base">Base</string>
+    <string name="overlay_mega_badge">Mega</string>
+    <string name="overlay_pin_release">📌 Unpin</string>
+    <string name="overlay_recognition_fail">Not recognized 🔍</string>
+    <string name="overlay_tap_to_search">Tap to search</string>
+    <string name="overlay_expand">Expand</string>
+    <string name="overlay_collapse">Collapse</string>
+    <string name="overlay_section_stats">Base stats</string>
+    <string name="overlay_section_total">Total</string>
+    <string name="overlay_section_matchup">Defensive matchups</string>
+    <string name="overlay_section_moves">Moves (by usage)</string>
+    <string name="overlay_dex_prefix">Dex #</string>
+    <string name="overlay_matchup_weak4">×4 weak</string>
+    <string name="overlay_matchup_weak2">×2 weak</string>
+    <string name="overlay_matchup_resist_quarter">×¼ resist</string>
+    <string name="overlay_matchup_resist_half">×½ resist</string>
+    <string name="overlay_matchup_immune">Immune</string>
+
+    <!-- Capture stopped / no-recognition hint -->
+    <string name="overlay_capture_stopped_title">Capture stopped</string>
+    <string name="overlay_capture_stopped_body">The screen locked or capture was stopped.\nScreen consent is required to start again.</string>
+    <string name="overlay_capture_restart">▶ Restart</string>
+    <string name="overlay_battlenames_hint">No names showing? Turn on \'Display Battle Names\' in the game settings.</string>
+
+    <!-- ===== Candidate / search sheets ===== -->
+    <string name="sheet_candidate_title">Which Pokémon?</string>
+    <string name="sheet_search_title">Search by name</string>
+    <string name="sheet_search_hint">Enter Pokémon name…</string>
+    <string name="sheet_recommended">Top</string>
+    <string name="sheet_close">Close</string>
+</resources>

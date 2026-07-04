@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      P10 E2E 검증 전용(디버그 빌드에만 존재). 릴리즈/메인 흐름 비침투.
+      에뮬레이터 화면에 field_samples 실배틀 스크린샷을 전체화면(immersive)으로 띄워
+      앱이 스스로 화면을 캡처→OCR→오버레이 갱신하는 완전한 파이프라인을 검증하기 위한
+      "배경 이미지 표시" 액티비티. adb 로만 실행(exported=true, 디버그 한정).
+    -->
+    <!-- 디버그 전용: 로컬 http 서버(10.0.2.2) 로 P13 갱신 E2E 테스트 시 cleartext 허용.
+         릴리즈에는 이 override 가 없어 HTTPS 강제 유지. -->
+    <application android:networkSecurityConfig="@xml/network_security_config">
+        <activity
+            android:name=".debug.SampleImageActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.pochamps.supporter.debug.sample"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.PochampsSupporter" />
+    </application>
+
+</manifest>

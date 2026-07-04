@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  런처 아이콘 배경 레이어(어댑티브). 108x108dp 캔버스.
+  앱 액센트 블루 계열 대각 그라디언트 — 오리지널 모티브(포켓몬 저작물 무사용).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0 h108 v108 h-108 z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt"
+            name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="108" android:endY="108">
+                <item android:offset="0.0" android:color="#FF2B3B5E" />
+                <item android:offset="1.0" android:color="#FF16203A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

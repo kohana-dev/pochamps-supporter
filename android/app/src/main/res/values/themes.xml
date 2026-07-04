@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 앱이라 최소한의 Material3 부모 테마만 둔다. -->
+    <style name="Theme.PochampsSupporter" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

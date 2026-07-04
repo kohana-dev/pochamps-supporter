@@ -1,0 +1,58 @@
+# 버전 카탈로그 — 의존성 버전을 한곳에서 관리
+[versions]
+agp = "8.6.1"
+kotlin = "2.0.20"
+coreKtx = "1.13.1"
+lifecycle = "2.8.6"
+activityCompose = "1.9.2"
+savedState = "1.2.1"
+composeBom = "2024.09.03"
+kotlinxSerialization = "1.7.3"
+# ML Kit 텍스트 인식 v2 — 스크립트별 온디바이스 "번들(bundled)" 모델.
+# (P9) unbundled(play-services-mlkit-*, GMS 런타임 다운로드)에서 bundled(com.google.mlkit:*, 모델 APK 동봉)로 전환.
+#   근거: 에뮬레이터 GMS 가 OCR Zapp 모듈 다운로드에 실패해 K3 실측이 막힘(PROGRESS P8). bundled 는 모델을 APK 에 포함해
+#   최초 다운로드/초기화 지연·실패를 회피(DESIGN.md 2장 원 권장). 대가로 release APK 가 커진다(측정치는 PROGRESS P9).
+# DESIGN.md 9개 언어를 4개 recognizer 로 커버: korean/japanese/chinese/latin.
+mlkitTextKorean = "16.0.1"
+mlkitTextJapanese = "16.0.1"
+mlkitTextChinese = "16.0.1"
+# 라틴(기본) recognizer 는 스크립트별과 버전 트랙이 다르다.
+mlkitTextLatin = "16.0.1"
+# 코루틴 — 파이프라인(캡처→OCR) 백프레셔/취소/Dispatcher 분리에 사용(P3).
+coroutines = "1.8.1"
+junit = "4.13.2"
+# 계측 테스트(androidTest) — P8 K3 OCR 실측 하네스용.
+androidxTestRunner = "1.6.2"
+androidxTestExtJunit = "1.2.1"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-savedstate = { group = "androidx.savedstate", name = "savedstate", version.ref = "savedState" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# ML Kit 텍스트 인식(온디바이스, "번들") — 스크립트별. 모델이 APK 에 동봉되어 런타임 다운로드 불필요.
+# 좌표: com.google.mlkit:text-recognition* (unbundled 는 com.google.android.gms:play-services-mlkit-*).
+mlkit-text-korean = { group = "com.google.mlkit", name = "text-recognition-korean", version.ref = "mlkitTextKorean" }
+mlkit-text-japanese = { group = "com.google.mlkit", name = "text-recognition-japanese", version.ref = "mlkitTextJapanese" }
+mlkit-text-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkitTextChinese" }
+mlkit-text-latin = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextLatin" }
+# 코루틴(파이프라인 백프레셔/취소/Dispatcher).
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+# 계측 테스트 러너/규칙(P8 K3 OCR 실측 하네스).
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
