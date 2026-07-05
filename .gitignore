@@ -25,3 +25,6 @@ field_samples/video/*.mp4
 
 # === OS ===
 .DS_Store
+
+# 웹 수집 게임 스크린샷 — 로컬 검증 전용(공개 저장소 재배포 금지)
+android/app/src/androidTest/assets/field_samples/
