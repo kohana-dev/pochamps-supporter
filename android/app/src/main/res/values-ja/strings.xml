@@ -3,6 +3,54 @@
 <resources>
     <string name="app_name">ポケチャンプ サポーター</string>
 
+    <!-- ===== P33 ホーム画面(運用UI) ===== -->
+    <string name="home_tagline">相手ポケモンのリアルタイム情報オーバーレイ</string>
+    <string name="home_status_running">実行中</string>
+    <string name="home_status_idle">停止中</string>
+    <string name="home_status_running_body">オーバーレイがゲーム上に表示されています。ステータスバーに「キャプチャ中」の通知が出ます。</string>
+    <string name="home_status_idle_body">開始すると画面を読み取り、相手ポケモンの情報をゲーム上に表示します。</string>
+    <string name="home_cta_start">開始</string>
+    <string name="home_cta_stop">停止</string>
+    <string name="home_cta_start_hint">下の準備ステップをすべて完了すると開始できます。</string>
+    <string name="home_open_settings">設定を開く</string>
+
+    <string name="home_setup_title">はじめる前の準備</string>
+    <string name="home_setup_desc">以下のステップを順番に完了すればすぐに使えます。</string>
+    <string name="step_overlay_title">オーバーレイ権限</string>
+    <string name="step_overlay_body">ゲーム上に情報カードを表示するには「他のアプリの上に表示」権限が必要です。</string>
+    <string name="step_overlay_open">設定を開く</string>
+    <string name="step_overlay_recheck">許可しました</string>
+    <string name="step_notif_title">通知の権限</string>
+    <string name="step_notif_body">キャプチャ中を知らせるステータスバー通知のために必要です。</string>
+    <string name="step_notif_grant">通知を許可</string>
+    <string name="step_battle_title">ゲームで「バトル名表示」をON</string>
+    <string name="step_battle_body">ポケチャンプ → 設定 →「Display Battle Names」(バトル名表示)をONにしてください。相手の名前が画面に出ていないと認識できません。</string>
+    <string name="step_battle_ack">確認しました</string>
+    <string name="step_start_title">開始</string>
+    <string name="step_start_body">画面キャプチャに同意すると、オーバーレイがゲーム上に表示されます。</string>
+
+    <string name="home_preview_title">プレビュー</string>
+    <string name="home_preview_desc">画面キャプチャなしで、情報カードの見え方をデモで確認します。</string>
+    <string name="home_preview_running_desc">デモカードを再度タップすると別のポケモン例に切り替わります。</string>
+    <string name="home_preview_button">デモカードを表示</string>
+    <string name="home_preview_next">次の例</string>
+
+    <string name="unofficial_notice">非公式のファンメイドツールです。Nintendo・Creatures・GAME FREAK・The Pokémon Company とは無関係です。</string>
+    <string name="unofficial_notice_full">本アプリはファンが制作した非公式ツールであり、Nintendo、Creatures Inc.、GAME FREAK inc.、The Pokémon Company およびその関連会社との提携・後援・承認関係は一切ありません。関連する商標および著作権はそれぞれの所有者に帰属し、商標は説明目的の指示的使用に限られます。</string>
+
+    <!-- ===== P33 設定画面 グループ / 情報 ===== -->
+    <string name="settings_back">戻る</string>
+    <string name="settings_group_display">表示</string>
+    <string name="settings_group_recognition">認識</string>
+    <string name="settings_group_data">データ</string>
+    <string name="settings_group_advanced">詳細</string>
+    <string name="settings_group_about">情報</string>
+    <string name="settings_about_version_title">アプリのバージョン</string>
+    <string name="settings_about_version_value">%1$s (ビルド %2$d)</string>
+    <string name="settings_about_unofficial_title">非公式の告知</string>
+    <string name="settings_about_legal_title">規約 · ライセンス</string>
+    <string name="settings_about_legal_placeholder">プライバシーポリシーとオープンソースライセンスの表示は今後のアップデートで提供予定です。本アプリはデータの収集・送信を一切行わず、すべての処理は端末内で完結します。</string>
+
     <!-- ===== オンボーディング(MainActivity) ===== -->
     <string name="onboarding_title">ポケチャンプ サポーター</string>
     <string name="onboarding_intro_title">このアプリの機能</string>

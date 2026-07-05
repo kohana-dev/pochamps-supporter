@@ -2,6 +2,50 @@
 <!-- Español (es). Best-effort — se recomienda revisión de un hablante nativo (excepto ko/ja/en). -->
 <resources>
     <string name="app_name">PokeChamps Supporter</string>
+
+    <!-- ===== P33 Pantalla de inicio (best-effort) ===== -->
+    <string name="home_tagline">Superposición de información del rival en tiempo real</string>
+    <string name="home_status_running">En ejecución</string>
+    <string name="home_status_idle">Detenido</string>
+    <string name="home_status_running_body">La superposición se muestra sobre el juego. En la barra de estado aparece un aviso de \'Capturando\'.</string>
+    <string name="home_status_idle_body">Inicia para leer la pantalla y mostrar la información del Pokémon rival sobre el juego.</string>
+    <string name="home_cta_start">Iniciar</string>
+    <string name="home_cta_stop">Detener</string>
+    <string name="home_cta_start_hint">Completa los pasos de configuración de abajo para empezar.</string>
+    <string name="home_open_settings">Abrir ajustes</string>
+    <string name="home_setup_title">Antes de empezar</string>
+    <string name="home_setup_desc">Completa estos pasos en orden y estarás listo.</string>
+    <string name="step_overlay_title">Permiso de superposición</string>
+    <string name="step_overlay_body">Se necesita el permiso \'Mostrar sobre otras apps\' para mostrar tarjetas de información sobre el juego.</string>
+    <string name="step_overlay_open">Abrir ajustes</string>
+    <string name="step_overlay_recheck">Ya lo permití</string>
+    <string name="step_notif_title">Permiso de notificaciones</string>
+    <string name="step_notif_body">Necesario para el aviso de la barra de estado de que la captura está activa.</string>
+    <string name="step_notif_grant">Permitir notificaciones</string>
+    <string name="step_battle_title">Activa los nombres de combate en el juego</string>
+    <string name="step_battle_body">En PokeChamps → Ajustes → activa \'Display Battle Names\'. El nombre del rival debe aparecer en pantalla para ser reconocido.</string>
+    <string name="step_battle_ack">Entendido</string>
+    <string name="step_start_title">Iniciar</string>
+    <string name="step_start_body">Tras aprobar la captura de pantalla, la superposición aparece sobre el juego.</string>
+    <string name="home_preview_title">Vista previa</string>
+    <string name="home_preview_desc">Mira cómo se ve la tarjeta de información con una demo, sin captura de pantalla.</string>
+    <string name="home_preview_running_desc">Toca de nuevo la tarjeta de demo para pasar por otros ejemplos de Pokémon.</string>
+    <string name="home_preview_button">Ver tarjeta de demo</string>
+    <string name="home_preview_next">Siguiente ejemplo</string>
+    <string name="unofficial_notice">Herramienta no oficial hecha por fans. Sin relación con Nintendo, Creatures, GAME FREAK ni The Pokémon Company.</string>
+    <string name="unofficial_notice_full">Esta es una herramienta no oficial hecha por fans y no está afiliada, patrocinada ni respaldada por Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company ni sus filiales. Todas las marcas y derechos de autor relacionados pertenecen a sus respectivos propietarios; las marcas se usan de forma nominativa solo con fines descriptivos.</string>
+    <string name="settings_back">Atrás</string>
+    <string name="settings_group_display">Pantalla</string>
+    <string name="settings_group_recognition">Reconocimiento</string>
+    <string name="settings_group_data">Datos</string>
+    <string name="settings_group_advanced">Avanzado</string>
+    <string name="settings_group_about">Acerca de</string>
+    <string name="settings_about_version_title">Versión de la app</string>
+    <string name="settings_about_version_value">%1$s (compilación %2$d)</string>
+    <string name="settings_about_unofficial_title">Aviso no oficial</string>
+    <string name="settings_about_legal_title">Términos · Licencias</string>
+    <string name="settings_about_legal_placeholder">La política de privacidad y los avisos de licencias de código abierto se añadirán en una próxima actualización. Esta app no recopila ni transmite ningún dato; todo el procesamiento ocurre en tu dispositivo.</string>
+
     <string name="onboarding_title">PokeChamps Supporter</string>
     <string name="onboarding_intro_title">Qué hace esta app</string>
     <string name="onboarding_intro_body">Durante el combate lee el nombre del Pokémon rival que aparece en pantalla y muestra su tipo, habilidad y mejores movimientos sobre el juego.\n\n• Solo muestra información ya visible en pantalla.\n• No lee la memoria del juego ni introduce nada automáticamente.</string>

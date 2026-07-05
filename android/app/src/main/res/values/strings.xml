@@ -2,6 +2,57 @@
 <resources>
     <string name="app_name">포챔스 서포터</string>
 
+    <!-- ===== P33 홈 화면(운영급 UI 재설계) ===== -->
+    <string name="home_tagline">상대 포켓몬 실시간 정보 오버레이</string>
+    <string name="home_status_running">실행 중</string>
+    <string name="home_status_idle">중지됨</string>
+    <string name="home_status_running_body">오버레이가 게임 위에 떠 있습니다. 상태바에 \'캡처 중\' 알림이 표시됩니다.</string>
+    <string name="home_status_idle_body">시작하면 화면을 읽어 상대 포켓몬 정보를 게임 위에 표시합니다.</string>
+    <string name="home_cta_start">시작</string>
+    <string name="home_cta_stop">중지</string>
+    <string name="home_cta_start_hint">아래 준비 단계를 모두 마치면 시작할 수 있습니다.</string>
+    <string name="home_open_settings">설정 열기</string>
+
+    <!-- 준비(온보딩) 체크리스트 -->
+    <string name="home_setup_title">시작 전 준비</string>
+    <string name="home_setup_desc">아래 단계를 순서대로 마치면 바로 사용할 수 있어요.</string>
+    <string name="step_overlay_title">오버레이 권한</string>
+    <string name="step_overlay_body">게임 위에 정보 카드를 띄우려면 \'다른 앱 위에 표시\' 권한이 필요합니다.</string>
+    <string name="step_overlay_open">권한 설정 열기</string>
+    <string name="step_overlay_recheck">허용했어요</string>
+    <string name="step_notif_title">알림 권한</string>
+    <string name="step_notif_body">캡처 중임을 알리는 상태바 알림을 위해 필요합니다.</string>
+    <string name="step_notif_grant">알림 허용</string>
+    <string name="step_battle_title">게임에서 배틀명 표시 켜기</string>
+    <string name="step_battle_body">포챔스 → 설정 → \'Display Battle Names\'(배틀명 표시)를 ON 으로 해주세요. 상대 이름이 화면에 떠야 인식됩니다.</string>
+    <string name="step_battle_ack">확인했어요</string>
+    <string name="step_start_title">시작</string>
+    <string name="step_start_body">화면 캡처 동의 후 오버레이가 게임 위에 표시됩니다.</string>
+
+    <!-- 미리보기(데모) -->
+    <string name="home_preview_title">미리보기</string>
+    <string name="home_preview_desc">화면 캡처 없이 정보 카드가 어떻게 보이는지 데모로 확인합니다.</string>
+    <string name="home_preview_running_desc">데모 카드를 다시 눌러 다른 포켓몬 예시로 순환합니다.</string>
+    <string name="home_preview_button">데모 카드 보기</string>
+    <string name="home_preview_next">다음 예시</string>
+
+    <!-- 비공식 고지(ip_risk.md — 상표 지시적 사용, 무관 명시) -->
+    <string name="unofficial_notice">비공식 팬메이드 도구입니다. Nintendo·Creatures·GAME FREAK·The Pokémon Company 와 무관합니다.</string>
+    <string name="unofficial_notice_full">본 앱은 팬이 만든 비공식 도구이며, Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company 및 그 계열사와 어떠한 제휴·후원·보증 관계도 없습니다. 모든 관련 상표와 저작권은 각 소유자에게 있으며, 상표는 설명 목적의 지시적 사용에 한합니다.</string>
+
+    <!-- ===== P33 설정 화면 그룹/정보 ===== -->
+    <string name="settings_back">뒤로</string>
+    <string name="settings_group_display">표시</string>
+    <string name="settings_group_recognition">인식</string>
+    <string name="settings_group_data">데이터</string>
+    <string name="settings_group_advanced">고급</string>
+    <string name="settings_group_about">정보</string>
+    <string name="settings_about_version_title">앱 버전</string>
+    <string name="settings_about_version_value">%1$s (빌드 %2$d)</string>
+    <string name="settings_about_unofficial_title">비공식 고지</string>
+    <string name="settings_about_legal_title">약관 · 라이선스</string>
+    <string name="settings_about_legal_placeholder">개인정보처리방침과 오픈소스 라이선스 고지는 다음 업데이트에서 제공될 예정입니다. 본 앱은 어떤 데이터도 수집·전송하지 않으며 모든 처리는 기기 안에서만 이뤄집니다.</string>
+
     <!-- ===== 온보딩(MainActivity) ===== -->
     <string name="onboarding_title">포챔스 서포터</string>
     <string name="onboarding_intro_title">이 앱이 하는 일</string>

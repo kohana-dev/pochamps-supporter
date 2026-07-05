@@ -12,64 +12,92 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.pochamps.supporter.R
 import com.pochamps.supporter.capture.PrefsRoiConfigStore
 import com.pochamps.supporter.data.AppSettings
 import com.pochamps.supporter.data.DbUpdateManager
 import com.pochamps.supporter.data.LocaleUtils
+import com.pochamps.supporter.ui.theme.PochampsTheme
 import kotlinx.coroutines.launch
 
 /**
- * 앱 진입점 · 권한 온보딩(DESIGN.md 6장 흐름).
+ * 앱 진입점 · 운영급 UI(P33 재설계).
  *
- * 흐름:
- *  (1) 앱 소개 + "화면에 보이는 정보만 표시" 고지
- *  (2) 오버레이 권한(SYSTEM_ALERT_WINDOW) 체크 + 설정 이동
- *  (3) 게임 내 "배틀명 표시 ON" 안내(K2 대응)
- *  (4) "시작" → 오버레이 표시 → FGS 시작 → MediaProjection 동의 다이얼로그
- *  (5) 실행 중 상태 + 중지 버튼
+ * 화면 구성:
+ *  - 홈(HomeScreen): 브랜드 헤더 → 캡처 상태 카드 + 시작/중지 CTA → (온보딩 미완료 시) 단계 체크리스트
+ *    → 미리보기(데모) 섹션 → 설정 진입.
+ *  - 설정(SettingsScreen): [표시]/[인식]/[데이터]/[고급]/[정보] 그룹.
+ *
+ * 서비스·오버레이·파이프라인 코드는 일절 건드리지 않는다(회귀 방지). 시작/중지/데모/재시작(P7)/
+ * POST_NOTIFICATIONS 요청/AppSettings 연동은 기존 동작을 그대로 유지한다.
  *
  * Android 15 순서: 오버레이 먼저 → FGS 시작. 실제 오버레이 show()/FGS 시작은 CaptureService 가
- * onStartCommand 안에서 "오버레이 먼저 → startForeground" 순으로 처리한다(2장 규정).
+ * onStartCommand 안에서 순서대로 처리한다(기존 규정 불변).
  */
 class MainActivity : ComponentActivity() {
 
-    // 표시 언어(displayLang) 로케일을 이 액티비티의 base context 에 적용(P19).
-    // Compose stringResource / 모든 리소스 조회가 표시 언어로 해석된다(시스템 로케일 불변).
+    // 표시 언어(displayLang) 로케일을 base context 에 적용(P19) — 모든 리소스 조회가 표시 언어로 해석.
     override fun attachBaseContext(newBase: Context) {
         val lang = AppSettings(newBase).displayLang
         super.attachBaseContext(LocaleUtils.wrap(newBase, lang))
@@ -78,34 +106,55 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    OnboardingScreen()
+            PochampsTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    AppRoot()
                 }
             }
         }
     }
 }
 
+/** 앱 내 화면(가벼운 상태 전환 — Navigation 미도입, 기존 구조에 맞는 최소 구현). */
+private enum class Screen { HOME, SETTINGS }
+
 @Composable
-private fun OnboardingScreen() {
+private fun AppRoot() {
+    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    // 설정 화면에서 시스템 뒤로가기는 액티비티를 종료하지 않고 홈으로 되돌린다(예측 가능한 뒤로가기).
+    androidx.activity.compose.BackHandler(enabled = screen == Screen.SETTINGS) {
+        screen = Screen.HOME
+    }
+    when (screen) {
+        Screen.HOME -> HomeScreen(onOpenSettings = { screen = Screen.SETTINGS })
+        Screen.SETTINGS -> SettingsScreen(onBack = { screen = Screen.HOME })
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  홈 화면
+// ══════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun HomeScreen(onOpenSettings: () -> Unit) {
     val context = LocalContext.current
 
-    // "다른 앱 위에 표시" 권한 상태. 설정에서 돌아올 때 재확인해야 하므로 함수로 조회.
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    var notifGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
+    var battleAck by rememberSaveable { mutableStateOf(false) }
     var running by remember { mutableStateOf(false) }
 
-    // 캡처 중단 후 오버레이의 "재시작" 버튼은 이 액티비티를 다시 앞으로 가져오지만(REORDER_TO_FRONT),
-    // onCreate 를 재실행하지 않으므로 Compose 의 `running` 이 true 로 남아 "시작" 버튼이 사라진 채
-    // 재동의(createScreenCaptureIntent) 를 다시 받을 수 없는 막다른 상태가 된다.
-    // → 액티비티가 다시 보일(ON_RESUME) 때 running 을 false 로 되돌려 "시작" 버튼을 복원한다.
-    //   (재시작 경로는 항상 서비스를 stopSelf 한 뒤 액티비티를 띄우므로, 복귀 시점엔 캡처 세션이 없다.
-    //    설령 서비스가 살아 있어도 "시작"을 다시 누르면 새 세션이 시작될 뿐 무해하다.)
+    // 캡처 중단 후 오버레이 "재시작"(REORDER_TO_FRONT)은 onCreate 를 재실행하지 않으므로,
+    // 액티비티가 다시 보일(ON_RESUME) 때 running=false 로 되돌려 "시작" 버튼(재동의 경로)을 복원한다(P7).
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 overlayGranted = Settings.canDrawOverlays(context)
+                notifGranted = context.hasNotificationPermission()
                 running = false
             }
         }
@@ -113,17 +162,16 @@ private fun OnboardingScreen() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // POST_NOTIFICATIONS 런타임 권한(Android 13+). 없으면 "캡처 중" 알림이 안 뜬다(FGS 자체는 동작).
+    // POST_NOTIFICATIONS 런타임 권한(Android 13+). 없으면 '캡처 중' 알림이 안 뜬다(FGS 자체는 동작).
     val notifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* 허용/거부 모두 진행 — 알림은 부가 기능. */ }
+    ) { granted -> notifGranted = granted || !context.notificationPermissionRequired() }
 
     // MediaProjection 동의 다이얼로그 결과 수신 런처.
     val projectionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
-            // 동의 완료 → 결과를 담아 FGS 시작(서비스가 오버레이 먼저 → FGS → 세션 확보).
             val intent = com.pochamps.supporter.capture.CaptureService
                 .startIntent(context, result.resultCode, result.data!!)
             ContextCompat.startForegroundService(context, intent)
@@ -131,229 +179,651 @@ private fun OnboardingScreen() {
         }
     }
 
+    val onboarding = OnboardingLogic.compute(
+        overlayGranted = overlayGranted,
+        notificationRequired = context.notificationPermissionRequired(),
+        notificationGranted = notifGranted,
+        battleNamesAcknowledged = battleAck,
+    )
+
+    fun startCapture() {
+        context.requestNotificationPermissionIfNeeded(notifLauncher)
+        val mpm = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        projectionLauncher.launch(mpm.createScreenCaptureIntent())
+    }
+    fun startDemo() {
+        context.requestNotificationPermissionIfNeeded(notifLauncher)
+        ContextCompat.startForegroundService(
+            context,
+            com.pochamps.supporter.capture.CaptureService.demoIntent(context),
+        )
+        running = true
+    }
+    fun stopCapture() {
+        context.startService(com.pochamps.supporter.capture.CaptureService.stopIntent(context))
+        running = false
+    }
+
+    val scrollTopInset = WindowInsets.statusBars.asPaddingValues()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(
+                start = 20.dp, end = 20.dp,
+                top = 16.dp + scrollTopInset.calculateTopPadding(),
+                bottom = 32.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // (1) 소개 + 고지
-        Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.headlineSmall)
-        InfoCard(
-            title = stringResource(R.string.onboarding_intro_title),
-            body = stringResource(R.string.onboarding_intro_body),
-        )
-        // 법적 고지(K4 EULA 조사): 캐주얼 전용·공인 대회 사용 실격 위험 경고.
-        InfoCard(
-            title = stringResource(R.string.onboarding_legal_title),
-            body = stringResource(R.string.onboarding_legal_body),
-        )
+        // ── 브랜드 헤더 + 설정 진입 ──
+        BrandHeader(onOpenSettings = onOpenSettings)
 
-        // (2) 오버레이 권한
-        Text(stringResource(R.string.onboarding_step_overlay), style = MaterialTheme.typography.titleMedium)
-        Text(
-            if (overlayGranted) stringResource(R.string.onboarding_overlay_granted)
-            else stringResource(R.string.onboarding_overlay_needed),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        if (!overlayGranted) {
-            OutlinedButton(onClick = { context.openOverlaySettings() }) {
-                Text(stringResource(R.string.onboarding_overlay_open))
-            }
-            OutlinedButton(onClick = { overlayGranted = Settings.canDrawOverlays(context) }) {
-                Text(stringResource(R.string.onboarding_overlay_recheck))
-            }
-        }
-
-        // (3) 게임 설정 안내
-        Text(stringResource(R.string.onboarding_step_game), style = MaterialTheme.typography.titleMedium)
-        InfoCard(
-            title = stringResource(R.string.onboarding_game_title),
-            body = stringResource(R.string.onboarding_game_body),
+        // ── 상태 카드 + 주 CTA(가장 눈에 띄게) ──
+        StatusCard(
+            running = running,
+            canStart = onboarding.allReady,
+            onStart = { startCapture() },
+            onStop = { stopCapture() },
         )
 
-        // (4)/(5) 시작 / 실행 중
-        Text(stringResource(R.string.onboarding_step_run), style = MaterialTheme.typography.titleMedium)
-        if (!running) {
-            Button(
-                onClick = {
-                    // Android 13+ 알림 권한을 먼저 요청(상태바 '캡처 중' 칩 보장).
-                    context.requestNotificationPermissionIfNeeded(notifLauncher)
-                    // MediaProjection 동의 다이얼로그를 띄운다.
-                    // (오버레이 표시 + FGS 시작은 동의 완료 후 서비스가 순서대로 처리.)
-                    val mpm = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                        as MediaProjectionManager
-                    projectionLauncher.launch(mpm.createScreenCaptureIntent())
-                },
-                enabled = overlayGranted,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.onboarding_start))
-            }
-            if (!overlayGranted) {
-                Text(
-                    stringResource(R.string.onboarding_need_overlay_first),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
-            // 데모 버튼: MediaProjection 없이 오버레이 카드만 띄워 UI 를 검증(실기기 확인용).
-            OutlinedButton(
-                onClick = {
-                    context.requestNotificationPermissionIfNeeded(notifLauncher)
-                    ContextCompat.startForegroundService(
-                        context,
-                        com.pochamps.supporter.capture.CaptureService.demoIntent(context),
-                    )
-                    running = true
-                },
-                enabled = overlayGranted,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.onboarding_demo))
-            }
-        } else {
-            InfoCard(
-                title = stringResource(R.string.onboarding_running_title),
-                body = stringResource(R.string.onboarding_running_body),
+        // ── 온보딩 체크리스트(미완료 시) ──
+        AnimatedVisibility(visible = !onboarding.allReady && !running) {
+            OnboardingChecklistCard(
+                state = onboarding,
+                onOpenOverlaySettings = { context.openOverlaySettings() },
+                onRecheckOverlay = { overlayGranted = Settings.canDrawOverlays(context) },
+                onRequestNotification = { context.requestNotificationPermissionIfNeeded(notifLauncher) },
+                onAckBattleNames = { battleAck = true },
+                onStart = { startCapture() },
             )
-            // 데모 순환: 실행 중에도 "데모 카드"를 다시 눌러 데모 대상(한카리아스↔윈디 등)을 순환한다.
-            // 서비스가 살아 있는 동안 demoIntent 를 반복 전송하면 CaptureService 가 다음 대상으로 넘어간다.
-            OutlinedButton(
-                onClick = {
-                    ContextCompat.startForegroundService(
-                        context,
-                        com.pochamps.supporter.capture.CaptureService.demoIntent(context),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.onboarding_demo))
-            }
-            Button(
-                onClick = {
-                    context.startService(
-                        com.pochamps.supporter.capture.CaptureService.stopIntent(context)
-                    )
-                    running = false
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.onboarding_stop))
-            }
         }
 
-        // (6) 설정: 게임 언어 선택 + ROI 기본값 리셋(고급).
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleMedium)
-        SettingsSection()
+        // ── 미리보기(데모) 섹션 ──
+        PreviewCard(
+            running = running,
+            enabled = overlayGranted,
+            onDemo = { startDemo() },
+        )
+
+        // ── 비공식 고지(홈 하단, 축약형) ──
+        UnofficialNoticeShort(onOpenSettings = onOpenSettings)
+    }
+}
+
+@Composable
+private fun BrandHeader(onOpenSettings: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BrandMark(modifier = Modifier.size(44.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                stringResource(R.string.home_tagline),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = stringResource(R.string.settings_title),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
 /**
- * 설정 섹션(DESIGN.md 5장): 게임 언어(9언어 → OcrEngine/표시 언어 연동) + ROI 기본값 리셋.
- * 언어 변경은 다음 "시작" 세션부터 적용된다(서비스가 onStartCommand 에서 로드).
+ * 브랜드 마크(P33) — 런처 아이콘 모티브(어두운 카드 + 이름줄 + 타입칩 2개)를 Compose 로 소형 렌더.
+ * 아이콘 리소스(adaptive-icon XML)는 painterResource 로 못 읽으므로 직접 그린다(회귀 유발 없음).
  */
-@OptIn(
-    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
-    androidx.compose.material3.ExperimentalMaterial3Api::class,
-)
 @Composable
-private fun SettingsSection() {
-    val context = LocalContext.current
-    val settings = remember { AppSettings(context) }
-    var displayLang by remember { mutableStateOf(settings.displayLang) }
-    var roiResetDone by remember { mutableStateOf(false) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // (A) 앱 표시 언어(P19) — UI + 카드 내용. 변경 시 액티비티를 재생성해 새 로케일을 즉시 반영.
-            Text(stringResource(R.string.settings_display_lang_title), style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.settings_display_lang_desc),
-                style = MaterialTheme.typography.bodySmall,
+private fun BrandMark(modifier: Modifier = Modifier) {
+    val navyTop = com.pochamps.supporter.ui.theme.NavyRaised
+    val navyBottom = com.pochamps.supporter.ui.theme.NavyBase
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(listOf(navyTop, navyBottom))
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // 이름줄(액센트 블루)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(com.pochamps.supporter.ui.theme.BrandBlue),
             )
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppSettings.LANGUAGE_LABELS.forEach { (code, label) ->
-                    FilterChip(
-                        selected = displayLang == code,
-                        onClick = {
-                            if (code != displayLang) {
-                                settings.displayLang = code
-                                displayLang = code
-                                // 새 표시 언어 로케일을 attachBaseContext 로 다시 적용하기 위해 재생성.
-                                (context as? android.app.Activity)?.recreate()
-                            }
-                        },
-                        label = { Text(label) },
+            // 타입칩 2개(파랑/그린)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(
+                    modifier = Modifier
+                        .width(13.dp).height(7.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(com.pochamps.supporter.ui.theme.BrandBlueDeep),
+                )
+                Box(
+                    modifier = Modifier
+                        .width(13.dp).height(7.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(com.pochamps.supporter.ui.theme.BrandGreen),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusCard(
+    running: Boolean,
+    canStart: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val statusColor = if (running) com.pochamps.supporter.ui.theme.StatusRunningGreen
+    else com.pochamps.supporter.ui.theme.StatusIdleGray
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(statusColor),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(
+                        if (running) R.string.home_status_running else R.string.home_status_idle
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = statusColor,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(
+                    if (running) R.string.home_status_running_body else R.string.home_status_idle_body
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = cs.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // 주 CTA — 화면에서 가장 두드러지게(큰 채움 버튼).
+            if (!running) {
+                Button(
+                    onClick = onStart,
+                    enabled = canStart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.home_cta_start),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                if (!canStart) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.home_cta_start_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
+            } else {
+                Button(
+                    onClick = onStop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = cs.errorContainer,
+                        contentColor = cs.onErrorContainer,
+                    ),
+                ) {
+                    // 중지 아이콘(작은 채움 사각형 — material-icons-core 에 Stop 이 없어 직접 그림).
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(cs.onErrorContainer),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.home_cta_stop),
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
             }
+        }
+    }
+}
 
-            // [P31] "게임 화면 언어(인식용)" 선택 제거 — 상대가 어느 언어로 떠도 항상 4개 스크립트를
-            //   병렬로 읽는다(전세계 매칭 대응). 카드 표시 언어(위 A)만 유저가 고른다.
-
-            Spacer(Modifier.height(16.dp))
-            BattleFormatSelector()
-
-            Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.settings_roi_title), style = MaterialTheme.typography.titleSmall)
+@Composable
+private fun OnboardingChecklistCard(
+    state: OnboardingState,
+    onOpenOverlaySettings: () -> Unit,
+    onRecheckOverlay: () -> Unit,
+    onRequestNotification: () -> Unit,
+    onAckBattleNames: () -> Unit,
+    onStart: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceVariant),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                stringResource(R.string.home_setup_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = cs.onSurface,
+            )
             Spacer(Modifier.height(4.dp))
             Text(
-                stringResource(R.string.settings_roi_desc),
+                stringResource(R.string.home_setup_desc),
                 style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
             )
-            Spacer(Modifier.height(8.dp))
-            // P14: 인앱 ROI 보정 오버레이 진입. 오버레이 권한 필요(보정 창을 게임 위에 띄움).
-            Button(
-                enabled = Settings.canDrawOverlays(context),
-                onClick = {
-                    ContextCompat.startForegroundService(
-                        context,
-                        com.pochamps.supporter.capture.CaptureService.calibrateIntent(context),
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
+            Spacer(Modifier.height(16.dp))
+
+            // ① 오버레이 권한
+            ChecklistStep(
+                index = 1,
+                title = stringResource(R.string.step_overlay_title),
+                body = stringResource(R.string.step_overlay_body),
+                done = state.stepState(OnboardingStep.OVERLAY).done,
+                active = state.stepState(OnboardingStep.OVERLAY).active,
             ) {
-                Text(stringResource(R.string.settings_roi_calibrate))
-            }
-            if (!Settings.canDrawOverlays(context)) {
-                Text(
-                    stringResource(R.string.settings_roi_calibrate_need_overlay),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = {
-                // 현재 형식의 ROI 오버라이드만 리셋(P20 — 형식별 분리). 다른 형식 보정은 보존.
-                PrefsRoiConfigStore(context).clear(settings.battleFormat)
-                roiResetDone = true
-            }) {
-                Text(
-                    if (roiResetDone) stringResource(R.string.settings_roi_reset_done)
-                    else stringResource(R.string.settings_roi_reset)
-                )
+                OutlinedButton(onClick = onOpenOverlaySettings) {
+                    Text(stringResource(R.string.step_overlay_open))
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onRecheckOverlay) {
+                    Text(stringResource(R.string.step_overlay_recheck))
+                }
             }
 
-            Spacer(Modifier.height(16.dp))
-            OverlayScaleSelector()
+            // ② 알림 권한
+            ChecklistStep(
+                index = 2,
+                title = stringResource(R.string.step_notif_title),
+                body = stringResource(R.string.step_notif_body),
+                done = state.stepState(OnboardingStep.NOTIFICATION).done,
+                active = state.stepState(OnboardingStep.NOTIFICATION).active,
+            ) {
+                OutlinedButton(onClick = onRequestNotification) {
+                    Text(stringResource(R.string.step_notif_grant))
+                }
+            }
 
-            Spacer(Modifier.height(16.dp))
-            DiagnosticsToggle()
+            // ③ 게임 배틀명 표시 안내
+            ChecklistStep(
+                index = 3,
+                title = stringResource(R.string.step_battle_title),
+                body = stringResource(R.string.step_battle_body),
+                done = state.stepState(OnboardingStep.BATTLE_NAMES).done,
+                active = state.stepState(OnboardingStep.BATTLE_NAMES).active,
+            ) {
+                FilledTonalButton(onClick = onAckBattleNames) {
+                    Text(stringResource(R.string.step_battle_ack))
+                }
+            }
 
-            Spacer(Modifier.height(16.dp))
-            DataUpdateSection()
+            // ④ 시작
+            ChecklistStep(
+                index = 4,
+                title = stringResource(R.string.step_start_title),
+                body = stringResource(R.string.step_start_body),
+                done = false,
+                active = state.stepState(OnboardingStep.START).active,
+                isLast = true,
+            ) {
+                Button(
+                    onClick = onStart,
+                    enabled = state.stepState(OnboardingStep.START).active,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.home_cta_start))
+                }
+            }
         }
     }
 }
 
 /**
- * 오버레이 카드 크기 선택(P16). 스케일 단계(80/100/125/150%) 칩. 저장 즉시 실행 중 오버레이에 반영된다
- * (데모/캡처 재탭 없이도 서비스가 다음 onStartCommand 에서 setScale; 실행 중 변경은 데모 재탭/재시작 시 반영).
- * 밀도 기반 스케일이라 카드가 잘림 없이 커지고 창(WRAP_CONTENT) 크기가 따라간다.
+ * 단계 한 줄: 좌측 상태 아이콘(완료 체크 / 미완료 원) + 번호·제목·설명 + (활성 시)액션.
+ * 완료 단계는 액션을 숨기고 체크만 남긴다. 미완료·비활성 단계는 흐리게(순차 안내).
+ */
+@Composable
+private fun ChecklistStep(
+    index: Int,
+    title: String,
+    body: String,
+    done: Boolean,
+    active: Boolean,
+    isLast: Boolean = false,
+    action: @Composable () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val dim = !done && !active
+    Row(modifier = Modifier.fillMaxWidth()) {
+        // 상태 아이콘: 완료=채움 체크, 미완료=빈 원(테두리). Box 로 그려 아이콘 의존 최소화.
+        val ringColor = if (active) cs.primary else cs.outline
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (done) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = com.pochamps.supporter.ui.theme.StatusRunningGreen,
+                    modifier = Modifier.size(24.dp),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, ringColor, CircleShape),
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "$index. $title",
+                style = MaterialTheme.typography.titleSmall,
+                color = if (dim) cs.onSurfaceVariant else cs.onSurface,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                body,
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+            )
+            // 활성 단계만 액션 노출(순차 안내 — 앞 단계 끝나야 활성).
+            if (active) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) { action() }
+            }
+            if (!isLast) Spacer(Modifier.height(14.dp))
+        }
+    }
+}
+
+@Composable
+private fun PreviewCard(running: Boolean, enabled: Boolean, onDemo: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                stringResource(R.string.home_preview_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = cs.onSurface,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(
+                    if (running) R.string.home_preview_running_desc else R.string.home_preview_desc
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onDemo,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(
+                        if (running) R.string.home_preview_next else R.string.home_preview_button
+                    )
+                )
+            }
+            if (!enabled) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.step_overlay_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnofficialNoticeShort(onOpenSettings: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.unofficial_notice),
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextButton(onClick = onOpenSettings, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Text(stringResource(R.string.home_open_settings))
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  설정 화면
+// ══════════════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SettingsScreen(onBack: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val scrollTopInset = WindowInsets.statusBars.asPaddingValues()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = 20.dp, end = 20.dp,
+                top = 8.dp + scrollTopInset.calculateTopPadding(),
+                bottom = 32.dp,
+            ),
+    ) {
+        // 상단 바
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.settings_back),
+                    tint = cs.onBackground,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                stringResource(R.string.settings_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = cs.onBackground,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // [표시] 언어 · 카드 크기
+        SettingsGroup(title = stringResource(R.string.settings_group_display)) {
+            DisplayLangSetting()
+            GroupDivider()
+            OverlayScaleSelector()
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // [인식] 배틀 형식 · ROI 보정 · 리셋
+        SettingsGroup(title = stringResource(R.string.settings_group_recognition)) {
+            BattleFormatSelector()
+            GroupDivider()
+            RoiSection()
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // [데이터] 업데이트 · 버전
+        SettingsGroup(title = stringResource(R.string.settings_group_data)) {
+            DataUpdateSection()
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // [고급] 진단 모드
+        SettingsGroup(title = stringResource(R.string.settings_group_advanced)) {
+            DiagnosticsToggle()
+        }
+        Spacer(Modifier.height(16.dp))
+
+        // [정보] 앱 버전 · 비공식 고지 · (P34 라이선스/정책 자리)
+        SettingsGroup(title = stringResource(R.string.settings_group_about)) {
+            AboutSection()
+        }
+    }
+}
+
+/** 설정 그룹 카드: 제목 + 내용 컨테이너(그룹 시각 분리). */
+@Composable
+private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Text(
+        title,
+        style = MaterialTheme.typography.labelMedium,
+        color = cs.primary,
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) { content() }
+    }
+}
+
+@Composable
+private fun GroupDivider() {
+    Spacer(Modifier.height(16.dp))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Spacer(Modifier.height(16.dp))
+}
+
+/** [표시] 앱 표시 언어(P19) — 변경 시 액티비티 재생성으로 새 로케일 즉시 반영. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DisplayLangSetting() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    var displayLang by remember { mutableStateOf(settings.displayLang) }
+
+    Text(stringResource(R.string.settings_display_lang_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.settings_display_lang_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppSettings.LANGUAGE_LABELS.forEach { (code, label) ->
+            FilterChip(
+                selected = displayLang == code,
+                onClick = {
+                    if (code != displayLang) {
+                        settings.displayLang = code
+                        displayLang = code
+                        (context as? android.app.Activity)?.recreate()
+                    }
+                },
+                label = { Text(label) },
+            )
+        }
+    }
+}
+
+/** [인식] ROI 보정 진입 + 현재 형식 ROI 리셋(P14/P20). */
+@Composable
+private fun RoiSection() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    var roiResetDone by remember { mutableStateOf(false) }
+
+    Text(stringResource(R.string.settings_roi_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.settings_roi_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    Button(
+        enabled = Settings.canDrawOverlays(context),
+        onClick = {
+            ContextCompat.startForegroundService(
+                context,
+                com.pochamps.supporter.capture.CaptureService.calibrateIntent(context),
+            )
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.settings_roi_calibrate))
+    }
+    if (!Settings.canDrawOverlays(context)) {
+        Text(
+            stringResource(R.string.settings_roi_calibrate_need_overlay),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(onClick = {
+        PrefsRoiConfigStore(context).clear(settings.battleFormat)
+        roiResetDone = true
+    }) {
+        Text(
+            if (roiResetDone) stringResource(R.string.settings_roi_reset_done)
+            else stringResource(R.string.settings_roi_reset)
+        )
+    }
+}
+
+/**
+ * [표시] 오버레이 카드 크기(P16). 스케일 단계(80/100/125/150%) 칩. 저장 즉시 실행 중 오버레이에 반영.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -364,7 +834,11 @@ private fun OverlayScaleSelector() {
 
     Text(stringResource(R.string.settings_scale_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
-    Text(stringResource(R.string.settings_scale_desc), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(R.string.settings_scale_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         com.pochamps.supporter.overlay.OverlayScale.STEPS.forEach { step ->
@@ -373,8 +847,6 @@ private fun OverlayScaleSelector() {
                 onClick = {
                     settings.overlayScale = step
                     scale = step
-                    // 실행 중이면 즉시 반영(오버레이가 떠 있는 경우). 서비스가 없으면 곧바로 자체 종료(no-op).
-                    // startService(FGS 승격 아님) — 서비스가 안 떠 있으면 onStartCommand 가 바로 stopSelf.
                     context.startService(
                         com.pochamps.supporter.capture.CaptureService.applyScaleIntent(context),
                     )
@@ -386,9 +858,7 @@ private fun OverlayScaleSelector() {
 }
 
 /**
- * 배틀 형식 선택(P20, 싱글/더블). 오버레이 빠른 토글과 같은 설정을 공유한다.
- * 형식을 바꾸면 인식 영역(싱글 1밴드 / 더블 2밴드)과 기술 사용률(싱글 vs 더블 메타)이 함께 바뀐다.
- * 다음 실행 세션부터 반영(실행 중 변경은 오버레이 빠른 토글이 즉시 반영).
+ * [인식] 배틀 형식 선택(P20, 싱글/더블). 인식 영역/사용률 메타가 함께 바뀐다.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -399,7 +869,11 @@ private fun BattleFormatSelector() {
 
     Text(stringResource(R.string.settings_format_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
-    Text(stringResource(R.string.settings_format_desc), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(R.string.settings_format_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
@@ -421,10 +895,7 @@ private fun BattleFormatSelector() {
     }
 }
 
-/**
- * 진단 모드 토글(P14 필드테스트 지원). 켜면 오버레이에 소형 진단 스트립이 표시된다
- * (마지막 OCR 원문·매칭·인식 시각·OCR 빈도). 다음 "시작" 세션부터 반영(서비스가 로드).
- */
+/** [고급] 진단 모드 토글(P14). 다음 실행 세션부터 반영. */
 @Composable
 private fun DiagnosticsToggle() {
     val context = LocalContext.current
@@ -433,9 +904,13 @@ private fun DiagnosticsToggle() {
 
     Text(stringResource(R.string.settings_diag_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
-    Text(stringResource(R.string.settings_diag_desc), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(R.string.settings_diag_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             if (enabled) stringResource(R.string.settings_diag_on)
             else stringResource(R.string.settings_diag_off),
@@ -452,10 +927,7 @@ private fun DiagnosticsToggle() {
     }
 }
 
-/**
- * 포켓몬 데이터 원격 갱신 섹션(P13, DESIGN.md 4-6).
- * 수동 "데이터 업데이트" 버튼 + 현재 버전(내장/다운로드) 표시. v0.1 은 수동 버튼만(자동 체크 없음).
- */
+/** [데이터] 포켓몬 데이터 원격 갱신(P13) + 현재 버전 표시. */
 @Composable
 private fun DataUpdateSection() {
     val context = LocalContext.current
@@ -465,13 +937,11 @@ private fun DataUpdateSection() {
     var checking by remember { mutableStateOf(false) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
 
-    // 문구는 순수 데이터(Result) → 리소스 매핑. Composable 밖 IO 는 코루틴에서.
     val versionLabel = version?.let { stringResource(R.string.settings_data_version_downloaded, it) }
         ?: stringResource(R.string.settings_data_version_bundled)
 
     val strChecking = stringResource(R.string.settings_data_checking)
     val strUpdate = stringResource(R.string.settings_data_update_button)
-    // 결과별 문구를 미리 확보(stringResource 는 Composable 안에서만 호출 가능).
     val sDisabled = stringResource(R.string.settings_data_disabled)
     val sFailNet = stringResource(R.string.settings_data_fail_network)
     val sFailManifest = stringResource(R.string.settings_data_fail_manifest)
@@ -480,9 +950,17 @@ private fun DataUpdateSection() {
 
     Text(stringResource(R.string.settings_data_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
-    Text(stringResource(R.string.settings_data_desc), style = MaterialTheme.typography.bodySmall)
+    Text(
+        stringResource(R.string.settings_data_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     Spacer(Modifier.height(6.dp))
-    Text(versionLabel, style = MaterialTheme.typography.bodySmall)
+    Text(
+        versionLabel,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
     Spacer(Modifier.height(8.dp))
     Button(
         enabled = !checking,
@@ -514,30 +992,67 @@ private fun DataUpdateSection() {
     }
     statusMsg?.let {
         Spacer(Modifier.height(6.dp))
-        Text(it, style = MaterialTheme.typography.bodySmall)
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** Android 13+ 에서 POST_NOTIFICATIONS 가 없으면 런타임 요청. 이전 버전은 no-op. */
+/** [정보] 앱 버전 · 비공식 고지 · (P34에서 라이선스/정책 링크가 들어갈 자리). */
+@Composable
+private fun AboutSection() {
+    val cs = MaterialTheme.colorScheme
+    Text(stringResource(R.string.settings_about_version_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(
+            R.string.settings_about_version_value,
+            com.pochamps.supporter.BuildConfig.APP_VERSION_NAME,
+            com.pochamps.supporter.BuildConfig.APP_VERSION_CODE,
+        ),
+        style = MaterialTheme.typography.bodyMedium,
+        color = cs.onSurface,
+    )
+    Spacer(Modifier.height(14.dp))
+
+    // 비공식 팬메이드 고지(research/ip_risk.md — 상표 지시적 사용, 무관 명시).
+    Text(stringResource(R.string.settings_about_unofficial_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.unofficial_notice_full),
+        style = MaterialTheme.typography.bodySmall,
+        color = cs.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(14.dp))
+
+    // P34 자리표시: 개인정보처리방침 / 오픈소스 라이선스(현재 준비 중 안내).
+    Text(stringResource(R.string.settings_about_legal_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.settings_about_legal_placeholder),
+        style = MaterialTheme.typography.bodySmall,
+        color = cs.onSurfaceVariant,
+    )
+}
+
+// ── 권한 헬퍼 ──────────────────────────────────────────────────────────────
+
+/** Android 13+ 에서 POST_NOTIFICATIONS 런타임 권한이 필요한지. */
+private fun Context.notificationPermissionRequired(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+/** 알림 권한 허용 여부(Android 12 이하는 항상 true — 런타임 권한 없음). */
+private fun Context.hasNotificationPermission(): Boolean {
+    if (!notificationPermissionRequired()) return true
+    return ContextCompat.checkSelfPermission(
+        this, android.Manifest.permission.POST_NOTIFICATIONS,
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+/** 없으면 런타임 요청(Android 13+). 이전 버전은 no-op. */
 private fun Context.requestNotificationPermissionIfNeeded(
     launcher: androidx.activity.result.ActivityResultLauncher<String>,
 ) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    val granted = ContextCompat.checkSelfPermission(
-        this, android.Manifest.permission.POST_NOTIFICATIONS,
-    ) == PackageManager.PERMISSION_GRANTED
-    if (!granted) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-}
-
-@Composable
-private fun InfoCard(title: String, body: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(6.dp))
-            Text(body, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
+    if (!notificationPermissionRequired()) return
+    if (!hasNotificationPermission()) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
 }
 
 /** '다른 앱 위에 표시' 시스템 설정 화면으로 이동. */

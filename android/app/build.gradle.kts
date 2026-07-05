@@ -13,10 +13,14 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.2.0-rc1" // 오버레이 인텔 강화: 아이템 사용률/스피드 실속/예상 팀원/×4 배지 (P32)
+        versionCode = 20
+        versionName = "0.2.0-rc2" // 운영급 앱 UI: M3 다크 테마·단계식 온보딩·설정 화면 (P33)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 정보 화면(About)에서 표시할 버전. 리소스/문구가 아니라 실제 빌드 값을 그대로 노출.
+        buildConfigField("String", "APP_VERSION_NAME", "\"$versionName\"")
+        buildConfigField("int", "APP_VERSION_CODE", "$versionCode")
 
         // 원격 데이터 갱신 base URL (DESIGN.md 4-6, P13). manifest.json 이 놓인 정적 호스팅 폴더.
         // 빈 문자열이면 갱신 비활성(내장 assets 만 사용) → 오프라인·미배포 안전.

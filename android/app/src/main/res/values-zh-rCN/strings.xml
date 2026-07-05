@@ -2,6 +2,50 @@
 <!-- 简体中文 (zh-CN)。尽力翻译 — 建议母语者审校(ko/ja/en 除外)。 -->
 <resources>
     <string name="app_name">PokeChamps Supporter</string>
+
+    <!-- ===== P33 主屏幕 (best-effort) ===== -->
+    <string name="home_tagline">对手宝可梦实时信息浮层</string>
+    <string name="home_status_running">运行中</string>
+    <string name="home_status_idle">已停止</string>
+    <string name="home_status_running_body">浮层正显示在游戏之上。状态栏会出现\'正在捕获\'提示。</string>
+    <string name="home_status_idle_body">开始后将读取屏幕，并在游戏之上显示对手宝可梦的信息。</string>
+    <string name="home_cta_start">开始</string>
+    <string name="home_cta_stop">停止</string>
+    <string name="home_cta_start_hint">完成下方的准备步骤即可开始。</string>
+    <string name="home_open_settings">打开设置</string>
+    <string name="home_setup_title">开始前的准备</string>
+    <string name="home_setup_desc">按顺序完成这些步骤即可使用。</string>
+    <string name="step_overlay_title">悬浮窗权限</string>
+    <string name="step_overlay_body">需要\'显示在其他应用上层\'权限，才能在游戏之上显示信息卡片。</string>
+    <string name="step_overlay_open">打开设置</string>
+    <string name="step_overlay_recheck">我已允许</string>
+    <string name="step_notif_title">通知权限</string>
+    <string name="step_notif_body">用于在状态栏提示正在捕获。</string>
+    <string name="step_notif_grant">允许通知</string>
+    <string name="step_battle_title">在游戏中开启对战名称显示</string>
+    <string name="step_battle_body">在 PokeChamps → 设置 → 开启\'Display Battle Names\'。对手名称须显示在屏幕上才能被识别。</string>
+    <string name="step_battle_ack">知道了</string>
+    <string name="step_start_title">开始</string>
+    <string name="step_start_body">同意屏幕捕获后，浮层会显示在游戏之上。</string>
+    <string name="home_preview_title">预览</string>
+    <string name="home_preview_desc">无需屏幕捕获，通过演示查看信息卡片的样子。</string>
+    <string name="home_preview_running_desc">再次点击演示卡片可循环切换其他宝可梦示例。</string>
+    <string name="home_preview_button">查看演示卡片</string>
+    <string name="home_preview_next">下一个示例</string>
+    <string name="unofficial_notice">非官方粉丝制作工具。与 Nintendo、Creatures、GAME FREAK、The Pokémon Company 无关。</string>
+    <string name="unofficial_notice_full">本应用是粉丝制作的非官方工具，与 Nintendo、Creatures Inc.、GAME FREAK inc.、The Pokémon Company 及其关联公司无任何隶属、赞助或认可关系。所有相关商标与版权归各自所有者所有；商标仅用于描述目的的指示性使用。</string>
+    <string name="settings_back">返回</string>
+    <string name="settings_group_display">显示</string>
+    <string name="settings_group_recognition">识别</string>
+    <string name="settings_group_data">数据</string>
+    <string name="settings_group_advanced">高级</string>
+    <string name="settings_group_about">关于</string>
+    <string name="settings_about_version_title">应用版本</string>
+    <string name="settings_about_version_value">%1$s (构建 %2$d)</string>
+    <string name="settings_about_unofficial_title">非官方声明</string>
+    <string name="settings_about_legal_title">条款 · 许可</string>
+    <string name="settings_about_legal_placeholder">隐私政策与开源许可声明将在后续更新中提供。本应用不收集也不传输任何数据；所有处理均在您的设备上完成。</string>
+
     <string name="onboarding_title">PokeChamps Supporter</string>
     <string name="onboarding_intro_title">应用功能</string>
     <string name="onboarding_intro_body">对战时，它会读取屏幕上显示的对手 Pokémon 名称，并在游戏上方显示其属性、特性和常用招式。\n\n• 仅显示屏幕上已可见的信息。\n• 不读取游戏内存，也不自动输入任何内容。</string>

@@ -2,6 +2,54 @@
 <resources>
     <string name="app_name">PokeChamps Supporter</string>
 
+    <!-- ===== P33 Home screen (production UI) ===== -->
+    <string name="home_tagline">Live opponent info overlay</string>
+    <string name="home_status_running">Running</string>
+    <string name="home_status_idle">Stopped</string>
+    <string name="home_status_running_body">The overlay is showing over your game. A \'Capturing\' notice appears in the status bar.</string>
+    <string name="home_status_idle_body">Start to read the screen and show opponent Pokémon info over your game.</string>
+    <string name="home_cta_start">Start</string>
+    <string name="home_cta_stop">Stop</string>
+    <string name="home_cta_start_hint">Finish the setup steps below to start.</string>
+    <string name="home_open_settings">Open settings</string>
+
+    <string name="home_setup_title">Before you start</string>
+    <string name="home_setup_desc">Complete these steps in order and you\'re ready to go.</string>
+    <string name="step_overlay_title">Overlay permission</string>
+    <string name="step_overlay_body">The \'Display over other apps\' permission is required to show info cards over your game.</string>
+    <string name="step_overlay_open">Open settings</string>
+    <string name="step_overlay_recheck">I allowed it</string>
+    <string name="step_notif_title">Notification permission</string>
+    <string name="step_notif_body">Needed for the status-bar notice that capture is active.</string>
+    <string name="step_notif_grant">Allow notifications</string>
+    <string name="step_battle_title">Turn on Battle Names in-game</string>
+    <string name="step_battle_body">In PokeChamps → Settings → turn ON \'Display Battle Names\'. The opponent name must appear on screen to be recognized.</string>
+    <string name="step_battle_ack">Got it</string>
+    <string name="step_start_title">Start</string>
+    <string name="step_start_body">After you approve screen capture, the overlay appears over your game.</string>
+
+    <string name="home_preview_title">Preview</string>
+    <string name="home_preview_desc">See how the info card looks with a demo — no screen capture needed.</string>
+    <string name="home_preview_running_desc">Tap the demo card again to cycle through other Pokémon examples.</string>
+    <string name="home_preview_button">Show demo card</string>
+    <string name="home_preview_next">Next example</string>
+
+    <string name="unofficial_notice">Unofficial fan-made tool. Not affiliated with Nintendo, Creatures, GAME FREAK, or The Pokémon Company.</string>
+    <string name="unofficial_notice_full">This is an unofficial, fan-made tool and is not affiliated with, sponsored by, or endorsed by Nintendo, Creatures Inc., GAME FREAK inc., The Pokémon Company, or their affiliates. All related trademarks and copyrights belong to their respective owners; trademarks are used nominatively for descriptive purposes only.</string>
+
+    <!-- ===== P33 Settings screen groups / about ===== -->
+    <string name="settings_back">Back</string>
+    <string name="settings_group_display">Display</string>
+    <string name="settings_group_recognition">Recognition</string>
+    <string name="settings_group_data">Data</string>
+    <string name="settings_group_advanced">Advanced</string>
+    <string name="settings_group_about">About</string>
+    <string name="settings_about_version_title">App version</string>
+    <string name="settings_about_version_value">%1$s (build %2$d)</string>
+    <string name="settings_about_unofficial_title">Unofficial notice</string>
+    <string name="settings_about_legal_title">Terms · Licenses</string>
+    <string name="settings_about_legal_placeholder">The privacy policy and open-source license notices will be added in an upcoming update. This app collects and transmits no data; all processing happens on your device.</string>
+
     <!-- ===== Onboarding (MainActivity) ===== -->
     <string name="onboarding_title">PokeChamps Supporter</string>
     <string name="onboarding_intro_title">What this app does</string>

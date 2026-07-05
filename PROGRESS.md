@@ -4,6 +4,61 @@
 
 ---
 
+## P33 — 운영급 앱 UI: M3 다크 테마 · 단계식 온보딩 · 설정 화면 (v0.2.0-rc2) ✅ 완료 (2026-07-05)
+
+> 근거: `PRODUCTION_PLAN.md` §3. 기존 MainActivity 는 기능 나열식 개발자 UI(온보딩·설정이 한 화면에 즉석 배치)였다. 실제 유저 배포 가능한 **운영 수준**으로 앱 화면(Activity)만 재설계한다. **오버레이/서비스/파이프라인 코드는 무수정**(회귀 방지) — Activity·theme·strings 만 대상.
+
+### 디자인 시스템 (스킬 참조)
+- 세션 내 `ui-ux-pro-max` 스킬 호출로 Material3/Compose 다크·게임유틸 가이드(색 토큰·타이포·터치타깃·다크대비·접근성 체크리스트)를 참조(스킬 정상 동작). 브랜드 팔레트는 **런처 아이콘/오버레이 카드에서 그대로 추출**: 액센트 블루 `#8AB4F8`, 딥 네이비 `#16203A`/`#2B3B5E`, 타입칩 파랑 `#4F86D8`·그린 `#6DAE4A`, 카드 `#1A1A1A`.
+- `ui/theme/` 신규 3파일:
+  - `Color.kt`: 브랜드 원색 + 다크(기본)/라이트 스킴 토큰(semantic — primary/surface/surfaceContainer/outline/error 등) + 상태 액센트(실행 초록/대기 회색).
+  - `Type.kt`: 시스템 서체 기반 타이포(헤드라인 Bold / 타이틀 SemiBold / 라벨 Medium / 본문 1.5 line-height). 폰트 애셋 미번들 → APK 증량 0.
+  - `Theme.kt`: `PochampsTheme` — **다크가 앱 표준**(`darkTheme=true` 기본, 시스템 라이트여도 브랜드 다크 렌더). dynamic color(Android 12+)는 코드로 지원하되 **기본 꺼짐**(브랜드 네이비 아이덴티티 보존 — 선택 적용). 상태/내비바 색 동기화.
+
+### 온보딩 단계 판정 — 순수 로직 분리(+테스트)
+- `ui/OnboardingState.kt`(신규, Android 의존 0): `OnboardingLogic.compute(overlayGranted, notificationRequired, notificationGranted, battleNamesAcknowledged)` → 4단계(① 오버레이 ② 알림 ③ 배틀명 안내 ④ 시작) 각각 `done`/`active` + 전체 `allReady`/`activeStep`. **순차 온보딩 불변식**: 미완료 단계 중 앞에서부터 첫 번째만 active. Android 12 이하는 알림 단계 자동완료(런타임 권한 불필요).
+- `OnboardingStateTest`(+10 → **285**): 최초/순차진행/전부완료/알림불필요OS/활성단계≤1개 불변식/오버레이 우선순위/단계순서 고정.
+
+### 홈 화면 재구성 (`HomeScreen`)
+- **브랜드 헤더**: Compose 로 그린 브랜드 마크(네이비 그라디언트 + 이름줄 + 타입칩 2개 — adaptive-icon XML 은 painterResource 불가라 직접 렌더) + 앱명/태그라인 + 우측 설정 기어.
+- **상태 카드 + 주 CTA**: 실행/중지 상태점(초록/회색) + 큰 문구 + **가장 두드러진 56dp 시작 CTA**(온보딩 완료 시 활성) / 실행 중이면 붉은 중지 버튼.
+- **단계식 체크리스트 카드**(온보딩 미완료 & 미실행 시만, AnimatedVisibility): 각 단계 좌측 완료 체크(초록)/미완료 빈원(활성=블루 링·비활성=흐림), 번호·제목·설명, **활성 단계만 액션 버튼 노출**(순차 안내). 완료되면 카드 자동 접힘.
+- **미리보기(데모) 섹션**: 데모 카드 버튼을 "미리보기"로 정리(실행 중엔 "다음 예시"로 순환).
+- 하단 축약형 비공식 고지 + 설정 진입.
+
+### 설정 화면 분리 (`SettingsScreen`, 상태 전환)
+- Compose Navigation 미도입 — `Screen` enum + `rememberSaveable` 가벼운 상태 전환(기존 구조에 맞는 최소 구현) + `BackHandler`(설정에서 시스템 뒤로 = 홈 복귀).
+- 그룹 카드: **[표시]** 언어·카드크기 / **[인식]** 배틀형식·ROI보정·리셋 / **[데이터]** 데이터 업데이트·버전 / **[고급]** 진단 모드 / **[정보]** 앱 버전(BuildConfig 실값)·비공식 고지 전문·(P34 라이선스/정책 placeholder).
+
+### 비공식 고지 (ip_risk.md 가이드)
+- ko/en/ja **정확**, de/es/fr/it/zh-rCN/zh-rTW **best-effort**: 홈 축약(`unofficial_notice`) + 정보 화면 전문(`unofficial_notice_full`) — "비공식 팬메이드, Nintendo·Creatures·GAME FREAK·The Pokémon Company 및 계열사와 무관, 모든 상표/저작권은 각 소유자, 상표는 지시적(설명 목적) 사용".
+
+### 기존 기능 회귀 0 (검증)
+- 시작(MediaProjection 동의)/중지(stopIntent)/데모(demoIntent)/설정값 연동(AppSettings 표시언어·스케일·형식·진단)/재시작 흐름(P7 ON_RESUME 복원)/POST_NOTIFICATIONS 요청 — **전부 기존 경로 그대로**. 서비스·오버레이·파이프라인 파일 무수정.
+- 아이콘: `material-icons-core` 만 사용(Stop/RadioButtonUnchecked 는 core 미포함 → Box 로 직접 그림, 신규 의존 0).
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720)
+- **홈 3상태**: `field_samples/p33/01`(온보딩 미완료 — 시작 비활성 + 단계①활성 블루링), `02`(단계 스크롤 — ②완료·③④대기), `03`(오버레이+알림 허용 — ①②초록체크), `04`(전부 준비 — 체크리스트 접힘 + **블루 시작 CTA 활성**).
+- **설정**: `05`(상단·[표시] 언어9칩·카드크기), `06`([인식] 배틀형식·ROI, [데이터]), `07`([고급] 진단, [정보] **앱 버전 0.2.0-rc2 빌드 20**·비공식 고지 전문·약관 placeholder).
+- **스모크**: `08` — 데모 카드 실행 → CaptureService FGS 시작(`isForeground=true`) → P32 오버레이 카드(한카리아스 ×4 얼음·아이템·기술) 정상 렌더, 홈은 "실행 중" 초록 상태로 전환. ✕ 로 종료 시 서비스 0(정리 확인).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **285/285, failures 0**(275 + P33 10).
+- `:app:assembleRelease`(R8, arm64) → 성공(APK ~16MB). **versionCode 20 / versionName 0.2.0-rc2**. release 데이터 URL 불변.
+
+### 코드 변경 요약
+- `ui/theme/Color.kt`·`Type.kt`·`Theme.kt`(신규): M3 다크 우선 디자인 시스템.
+- `ui/OnboardingState.kt`(신규): 온보딩 단계 판정 순수 로직.
+- `ui/MainActivity.kt`(전면 재작성): HomeScreen(브랜드 헤더·상태카드/CTA·체크리스트·미리보기) + SettingsScreen(그룹) + BrandMark. 기존 서비스 배선/권한 헬퍼는 동작 보존.
+- `OnboardingStateTest.kt`(신규, +10).
+- strings: ko(신규 다수) + en/ja 정확 + de/es/fr/it/zh-rCN/zh-rTW best-effort(home_*/step_*/settings_group_*/settings_about_*/unofficial_*).
+- build.gradle.kts: versionCode 20 / 0.2.0-rc2 + BuildConfig APP_VERSION_NAME/CODE.
+
+### 남은 항목
+- 구 온보딩 문자열(`onboarding_*`, `settings_language_*`)은 미사용이나 R8 `shrinkResources` 로 release 에서 제거됨(보존해도 무해 — 회귀 0 우선). P34 에서 라이선스/개인정보 링크가 [정보] placeholder 를 대체.
+
+---
+
 ## P31 — 항상 다국어 OCR (모든 스크립트 병렬, 9언어 매칭, 캡처언어 설정 제거) (v0.1.16) ✅ 완료 (2026-07-05)
 
 > **실사용자 확정 요구:** 이 게임은 **전세계 유저와 매칭**되어 상대 이름의 **언어가 게임마다·상대마다 바뀔 수 있다.** "게임 언어를 하나 골라 고정"하던 방식(captureLang)은 틀렸다 — 상대가 어느 언어로 떠도 읽어야 한다.
