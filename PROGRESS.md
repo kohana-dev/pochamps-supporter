@@ -4,6 +4,53 @@
 
 ---
 
+## P35 — 실기기 리포트 3건: 터치 영구차단 버그 + 단일앱 공유 안내 + 휴지통 드래그 종료 (v0.2.1) ✅ 완료 (2026-07-06)
+
+> 근거: 실기기 사용자 리포트 3건. (1) 전체화면 공유 캡처 중 게임 터치가 나중에 **영구 차단**되어 앱 강제종료해야 풀림(치명). (2) "단일 앱" 공유로는 인식 안 됨(전체 화면만 됨). (3) 종료 동선이 불편 → 휴지통 드래그&드롭 종료.
+
+### 리포트 1 — 터치 영구차단 버그: 근본 원인(재현·검증) + 단일 소스 리셋 + 워치독
+**재현된 실제 경로**(에뮬 `dumpsys window` + logcat 로 검증):
+- **자동복귀 타이머가 `HandleRoot` 컴포지션에 묶여 있었음**(`LaunchedEffect(mode.interactive)`). 핸들 창 컴포지션이 멈추면 타이머가 사라져 `interactive` 고착 → 메인 창 touchable 영구. → **타이머를 렌더러 수명에 붙은 Handler 루프([autoRevertTick])로 이동**(컴포지션 생존과 무관하게 항상 평가). 에뮬 실측: 조작 진입 후 12s 뒤 메인 창이 `NOT_TOUCHABLE` 로 복귀 확인.
+- **`setFocusable(searchOpen)` 복원이 메인 창 컴포지션(`OverlayRoot`)의 `LaunchedEffect(searchOpen)`에 있었고, 그 앞에 `if (isMinimized) return` 조기 반환**이 있었음. → 검색 시트 열린 채 최소화하면 복원 코드에 도달 못 해 `focusable` 고착 → `applyMainFlags` 의 `touchable = interactive || focusable` 때문에 **touchable 영구 true**(핵심 재현 경로). → **`toggleMinimized()` 에서 시트 닫기 + `resetToPassthrough()` 명시 호출** + **`DisposableEffect(Unit).onDispose { setFocusable(false) }`** 로 컴포지션 이탈에도 복원 보장. **에뮬 실측**: 검색 시트 열고 최소화 → 메인 창 `NOT_FOCUSABLE NOT_TOUCHABLE` 복귀 + logcat `resetToPassthrough(minimize)` 확인(고착 안 됨).
+- **`RoiCalibrationOverlay`**(MATCH_PARENT·focusable·touchable 전체화면 창) 가 `handleCaptureStopped` 에서 dismiss 안 됐음 → 캡처 중단 시 전화면 차단 위험. → `handleCaptureStopped` 에 **강제 dismiss** 추가(onDestroy 는 이미 있었음).
+
+**단일 소스 + 워치독**:
+- `resetToPassthrough(reason)`: **무조건 통과+비포커스로 강제 복원**하는 단일 경로. 최소화/캡처중단/워치독에서 호출.
+- `PassthroughWatchdog`(순수 JVM): 서비스가 5s 주기로 `overlay.runWatchdog()` 호출 → 메인 창이 터치를 받는 상태(interactive 또는 focusable)인데 마지막 조작 후 하드 타임아웃(30s, 자동복귀 12s 와 별개) 초과면 강제 통과 리셋 + 로그. 검색 시트 실열림 중엔 보류(IME 입력 방해 방지). 자동복귀 on/off 설정과 무관한 **최종 안전망** — 어떤 미지 경로로 고착돼도 자가 회복.
+- `destroy()` 에서 Handler 콜백 정리(좀비 타이머 방지).
+
+### 리포트 2 — 단일 앱 공유 안내 + 런타임 감지
+- **온보딩 ④시작 + 동의 직전 안내에 "전체 화면(Entire screen)을 선택하세요, '단일 앱'은 인식 안 됨" 명시**(ko/en/ja 정확, de/es/fr/it/zh-rCN/zh-rTW best-effort — 'Entire screen' 원어 병기). `step_start_body` 갱신 + `share_entire_screen_hint`. **에뮬 실측**: 온보딩 화면에서 안내 문구 렌더 확인(`00_app_home.png`, `07_...png`).
+- **런타임 감지**: `MediaProjection.Callback.onCapturedContentResize`(API 34+) 로 통지된 콘텐츠 크기 vs 실제 디스플레이 크기를 `SingleAppShareDetector`(순수 JVM)로 비교 → 5% 초과 불일치(=부분 캡처=단일앱 추정)면 오버레이에 1회 안내 카드(`SingleAppShareCard`: "전체 화면 공유가 필요해요" + 재시작 진입점=P7 재동의 재사용) 표시.
+- **정직 기록**: 단일앱 프레임 letterbox 보정은 **시도하지 않음**(과한 ROI 리매핑은 위험). 대신 전체 화면 재시작을 안내. 에뮬은 단일앱 공유 선택을 adb 로 신뢰성 있게 스크립트 못 하고 가상 디스플레이가 `onCapturedContentResize` 를 실기와 동일하게 방출 안 하므로, **감지 로직은 크기 불일치 시뮬레이션(유닛 테스트 7종)으로 검증**(960×540 vs 1280×720 → 감지). 온보딩 안내는 실측.
+
+### 리포트 3 — 휴지통 드래그&드랍 종료 (메신저 챗헤드 패턴)
+- **핸들 드래그 중에만** 화면 하단 중앙에 반투명 휴지통 드롭존(별도 전체화면·비터치 창 `TrashRoot`/`TrashDropZoneOverlay`) 표시 → 드롭존 위(원형 히트, 반경 88dp)면 붉게 하이라이트 + 라벨 "놓으면 종료" → 손 떼면 **완전 종료**(기존 `onExit` = ACTION_STOP 경로). 드롭존 밖에서 놓으면 평소처럼 위치 이동. 기존 종료 수단(알림/카드 ✕/롱프레스) 유지.
+- `TrashDropZone`(순수 JVM): 드롭존 중심 계산 + 원형 겹침 판정.
+- **에뮬 실측**: 드래그 중 드롭존 등장(`05_...png`) → 핸들 올리면 붉은 하이라이트+"놓으면 종료"(`06_...png`) → 드롭 시 logcat `휴지통 드롭 → 완전 종료(onExit)` + 오버레이 창 0개(완전 종료) 확인.
+
+### 테스트 (+23 → 317, 순수 JVM)
+- `PassthroughWatchdogTest`(ControlBarTest 내 +8): 순수통과 미리셋, interactive/focusable 고착 리셋, 하드타임아웃 경계, 시트열림 보류, 끔(0), 조작리셋 유지, 기본 하드타임아웃 ≥ 2×자동복귀.
+- `SingleAppShareDetectorTest`(+7): 전체화면 일치 미감지, 콘텐츠 축소 감지, 세로만 달라도 감지, 허용오차 이내 무시, 경계 초과 감지, 잘못된 크기 방어, 큰 허용오차.
+- `TrashDropZoneTest`(+8): 중심 하단중앙, 여백>화면 방어, 중심겹침, 반경내 겹침, 반경밖 미겹침, 경계 겹침, 반경0 방어, 상단 시작 미겹침.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 317/317, failures 0**(294 + P35 23).
+- `:app:assembleRelease`(R8) → 성공. **versionCode 22 / versionName 0.2.1**. release 데이터 URL 불변.
+
+### 코드 변경 요약
+- `overlay/ControlBarLogic.kt`: `PassthroughWatchdog`(순수 워치독 판정).
+- `overlay/OverlayRenderer.kt`: 자동복귀 Handler 루프(`autoRevertTick`/`ensureAutoRevertRunning`), `lastActivityMs`/`markActivity`, `resetToPassthrough`, `runWatchdog`, `DisposableEffect onDispose` focusable 복원, `toggleMinimized` 리셋, `showCaptureStopped` 리셋; 휴지통 창(`showTrash`/`hideTrash`/`onHandleDragStart/End`/`updateTrashHover`/`TrashRoot`); 단일앱 안내(`showSingleAppHintOnce`/`dismissSingleAppHint`).
+- `overlay/TrashDropZone.kt`(신규): 드롭존 기하/겹침 순수 로직.
+- `overlay/OverlayCard.kt`: `TrashDropZoneOverlay`, `SingleAppShareCard` 컴포저블.
+- `capture/SingleAppShareDetector.kt`(신규): 단일앱 크기 불일치 순수 판정.
+- `capture/CaptureService.kt`: `schedulePassthroughWatchdog`(5s 폴), `onCapturedContentResize` 콜백(단일앱 감지→안내), `handleCaptureStopped` 보정창 강제 dismiss.
+- strings(9로케일): `share_entire_screen_hint`/`overlay_single_app_*`/`overlay_trash_*`, `step_start_body` 갱신.
+- build.gradle.kts: versionCode 22 / 0.2.1.
+
+### 남은 실기기 전용 항목
+- 실기기 실 대전에서 단일앱 공유 선택 시 `onCapturedContentResize` 실제 방출 + 안내 카드 노출 최종 확인(에뮬 가상 디스플레이 한계로 감지 로직은 유닛 테스트로 보증). 리포트1 고착은 좁힌 경로 전부 에뮬 실측으로 수정 검증 완료 + 워치독이 미지 경로까지 커버.
+
 ## P34 — 출시 팩: 개인정보처리방침 · 오픈소스 라이선스 화면 · 로컬 크래시 리포트 · 사용자 README (v0.2.0) ✅ 완료 (2026-07-05)
 
 > 근거: `PRODUCTION_PLAN.md` §4 + research 5종(`ip_risk.md` 고지 가이드, `crash_reporting.md` 로컬+수동공유, `distribution_github_releases.md` Obtainium 배지, `play_requirements.md`). 요지: **온디바이스·전송 0** 실체를 법적 문서·크래시 리포트·배포 준비물로 그대로 옮긴다. **GitHub Release 게시는 메인 세션이 직접**(이 단계에서 안 함).
