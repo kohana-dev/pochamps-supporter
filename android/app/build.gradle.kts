@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.1.4" // 싱글/더블 형식 토글: ROI(밴드 수)+사용률 동시 전환, 형식별 ROI 오버라이드 분리(P20)
+        versionCode = 7
+        versionName = "0.1.5" // 모든 카드에서 수동 지정(🔍) + 강제 재인식(↻): 오인식 카드 교정·고착 탈출(P18)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

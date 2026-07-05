@@ -178,8 +178,17 @@ class CaptureService : Service() {
                 pipeline?.chooseCandidate(slot, root, key)
             },
             // 수동 검색 선택 → 슬롯 핀(파이프라인이 덮어쓰지 않게).
-            onPinSlot = { slot, key -> pipeline?.pinSlot(slot, key) },
+            // 데모(pipeline=null)에선 오버레이 카드를 직접 핀 상태로 교체해 UI 검증이 가능하게 한다.
+            onPinSlot = { slot, key ->
+                if (pipeline != null) pipeline?.pinSlot(slot, key) else demoPinSlot(slot, key)
+            },
             onUnpinSlot = { slot -> pipeline?.unpinSlot(slot) },
+            // 강제 재인식(P18): 슬롯 판정 상태 리셋 + FrameGate 우회 → 다음 프레임 즉시 OCR.
+            // 데모에선 파이프라인이 없어 재인식할 소스가 없으므로 로그만(UI 검증용 no-op).
+            onForceRescan = { slot ->
+                if (pipeline != null) pipeline?.forceRescan(slot)
+                else Log.i(TAG, "데모: 강제 재인식(slot=$slot) — 파이프라인 없음(no-op)")
+            },
             // 후보 리스트(root → 타입칩+사용률). 사용률 최상위=추천.
             candidateProvider = { root -> candidatesForRoot(root) },
             // 이름 부분일치 검색.
@@ -242,6 +251,16 @@ class CaptureService : Service() {
                 pinned = false,
             ),
         )
+    }
+
+    /**
+     * 데모 전용 수동 지정(P18). 파이프라인이 없는 데모 세션에서 수동 검색 선택 시 그 포켓몬으로
+     * 카드를 직접 교체하고 핀 배지를 노출한다(실제 핀 로직은 파이프라인이 담당 — 여기선 UI 검증용).
+     */
+    private fun demoPinSlot(slot: Int, key: String) {
+        val repo = repository ?: return
+        val card = OverlayCardData.fromRepository(repo, key, captureLang, captureFormat) ?: return
+        overlay?.updateSlot(slot, card, SlotUiMeta(root = null, hasMoreCandidates = false, pinned = true))
     }
 
     /** 후보 선택 시트용: root 의 후보를 타입칩+사용률과 함께. 사용률 최상위=추천. */

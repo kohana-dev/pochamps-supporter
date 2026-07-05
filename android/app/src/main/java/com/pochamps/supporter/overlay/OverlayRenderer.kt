@@ -60,6 +60,11 @@ class OverlayRenderer(
     private val onPinSlot: (slot: Int, key: String) -> Unit = { _, _ -> },
     /** 슬롯 핀 해제. */
     private val onUnpinSlot: (slot: Int) -> Unit = {},
+    /**
+     * 슬롯 강제 재인식(P18): 이 슬롯을 즉시 다시 읽는다(오인식 고착 탈출).
+     * 서비스가 파이프라인 [RecognitionPipeline.forceRescan] 으로 위임(decider 리셋 + FrameGate 무효화).
+     */
+    private val onForceRescan: (slot: Int) -> Unit = {},
     /** 후보 리스트 조회(root → 후보 카드 데이터). 시트가 표시할 후보 칩. */
     private val candidateProvider: (root: String) -> List<CandidateChoice> = { emptyList() },
     /** 이름 부분일치 검색(query → 결과). 수동 검색 시트. */
@@ -703,6 +708,8 @@ class OverlayRenderer(
                     FailureCard(
                         dragModifier = if (slot == primarySlot) dragMod else Modifier,
                         onOpenSearchSheet = { captureCardBounds(); openSheet.value = SheetState.Search(slot, "") },
+                        // ↻ 강제 재인식(P18): 검색 없이 즉시 다시 읽기(일시적 미인식 탈출).
+                        onForceRescan = { onForceRescan(slot) },
                     )
                     continue
                 }
@@ -732,6 +739,14 @@ class OverlayRenderer(
                         }
                     },
                     onUnpin = { onUnpinSlot(slot); metaBySlot[slot] = meta.copy(pinned = false) },
+                    // 🔍 수동 지정(P18): 어떤 카드가 떠 있든(정상/오인식) 검색 시트로 올바른 포켓몬 지정 → 핀.
+                    onOpenSearch = { captureCardBounds(); openSheet.value = SheetState.Search(slot, "") },
+                    // ↻ 강제 재인식(P18): 이 슬롯 즉시 다시 읽기. 핀 상태면 파이프라인이 핀 해제 후 재인식하므로
+                    // 여기서도 UI 핀 배지를 걷어 상태를 일치시킨다.
+                    onForceRescan = {
+                        if (meta.pinned) metaBySlot[slot] = meta.copy(pinned = false)
+                        onForceRescan(slot)
+                    },
                     // 종료 진입점은 주 카드(첫 슬롯)에만 붙인다(× + 그립 오래누르기).
                     onExit = if (slot == primarySlot) ({ onExit() }) else null,
                 )

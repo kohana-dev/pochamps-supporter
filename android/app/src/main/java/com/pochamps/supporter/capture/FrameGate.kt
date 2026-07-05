@@ -74,6 +74,22 @@ class FrameGate(
         lastTriggerAt.clear()
     }
 
+    /**
+     * 한 ROI 의 게이트를 무효화한다(P18 강제 재인식). 마지막 서명/트리거 시각을 지워서,
+     * **다음 프레임이 "최초 프레임"으로 판정** → 정지 화면(변화 없음)이라도 즉시 통과(=OCR 트리거)한다.
+     *
+     * ## 왜 필요한가
+     * FrameGate 는 "변화가 있을 때만" OCR 을 돌리므로, 오인식이 정지 화면에 고착되면 하트비트 주기
+     * ([maxIntervalMs]) 전까지 재스캔이 안 온다. 유저가 ↻(강제 재인식)를 누르면 이 메서드로 해당 ROI 를
+     * 무효화해, 게이트를 **1회 우회**(다음 프레임 즉시 트리거)하게 만든다.
+     *
+     * @param roiIndex 무효화할 ROI 식별자. 존재하지 않으면 no-op(이미 최초 상태).
+     */
+    fun invalidate(roiIndex: Int) {
+        lastSignatures.remove(roiIndex)
+        lastTriggerAt.remove(roiIndex)
+    }
+
     companion object {
         const val DEFAULT_MIN_INTERVAL_MS = 700L
         const val DEFAULT_DIFF_THRESHOLD = 0.10 // 다운샘플 셀의 10% 이상 바뀌면 변화로 간주.

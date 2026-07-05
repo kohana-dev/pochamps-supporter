@@ -96,6 +96,16 @@ fun OverlayCard(
     onOpenCandidateSheet: () -> Unit = {},
     /** 핀 해제. */
     onUnpin: () -> Unit = {},
+    /**
+     * 수동 지정(P18): 이 슬롯의 이름 검색 시트 열기. 정상/오인식 무관하게 올바른 포켓몬으로 교정.
+     * 그립 바 우측의 🔍 아이콘. null 이면 미노출(하위호환).
+     */
+    onOpenSearch: (() -> Unit)? = null,
+    /**
+     * 강제 재인식(P18): 이 슬롯을 즉시 다시 읽는다(오인식 고착 탈출). 그립 바 우측의 ↻ 아이콘.
+     * 핀 상태면 ↻ 는 핀을 풀고 재인식한다(파이프라인 forceRescan). null 이면 미노출(하위호환).
+     */
+    onForceRescan: (() -> Unit)? = null,
     /** 그립 바 오래누르기 → 앱/오버레이/캡처 완전 종료(P16). null 이면 종료 진입점 없음. */
     onExit: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -139,6 +149,29 @@ fun OverlayCard(
                         .padding(horizontal = 5.dp.scaled(), vertical = 1.dp.scaled()),
                 )
                 Spacer(Modifier.width(6.dp.scaled()))
+            }
+            // ↻ 강제 재인식(P18): 이 슬롯을 즉시 다시 읽는다(오인식 고착 탈출). 정상/오인식 무관 노출.
+            // 창=카드/터치통과 보존 — 아이콘 터치 영역만 clickable, 그 밖은 게임으로 통과.
+            if (onForceRescan != null) {
+                Text(
+                    stringResource(R.string.overlay_force_rescan),
+                    color = AccentColor, fontSize = 15.sp.scaled(), fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable { onForceRescan() }
+                        .padding(horizontal = 4.dp.scaled()),
+                )
+                Spacer(Modifier.width(2.dp.scaled()))
+            }
+            // 🔍 수동 지정(P18): 어떤 카드가 떠 있든 검색 시트로 올바른 포켓몬 지정(→ 핀).
+            if (onOpenSearch != null) {
+                Text(
+                    stringResource(R.string.overlay_manual_search),
+                    fontSize = 14.sp.scaled(),
+                    modifier = Modifier
+                        .clickable { onOpenSearch() }
+                        .padding(horizontal = 4.dp.scaled()),
+                )
+                Spacer(Modifier.width(2.dp.scaled()))
             }
             // 종료(×) 버튼: 게임 중에도 손쉽게 끌 수 있는 진입점(터치 영역만 focusable, P5 패턴 유지).
             if (onExit != null) {
@@ -269,11 +302,16 @@ private fun FormatSegment(label: String, selected: Boolean, onClick: () -> Unit)
     )
 }
 
-/** 인식 실패 상태 카드(수동 검색 진입). DESIGN.md 5장 상태별 UX. */
+/**
+ * 인식 실패 상태 카드(수동 검색 진입). DESIGN.md 5장 상태별 UX.
+ * P18: 카드 본문 탭 = 검색 시트, 우측 ↻ = 강제 재인식(즉시 다시 읽기 — 일시적 미인식 탈출).
+ */
 @Composable
 fun FailureCard(
     dragModifier: Modifier,
     onOpenSearchSheet: () -> Unit,
+    /** 강제 재인식(P18). null 이면 ↻ 미노출(데모/하위호환). */
+    onForceRescan: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -288,7 +326,19 @@ fun FailureCard(
         Text(stringResource(R.string.overlay_recognition_fail), color = ChipTextColor,
             fontSize = 14.sp.scaled(), fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(8.dp.scaled()))
-        Text(stringResource(R.string.overlay_tap_to_search), color = AccentColor, fontSize = 12.sp.scaled())
+        Text(stringResource(R.string.overlay_tap_to_search), color = AccentColor, fontSize = 12.sp.scaled(),
+            modifier = Modifier.weight(1f))
+        // ↻ 강제 재인식: 검색 없이 곧바로 "지금 다시 읽어"(정지 화면이라도 즉시 OCR).
+        if (onForceRescan != null) {
+            Spacer(Modifier.width(8.dp.scaled()))
+            Text(
+                stringResource(R.string.overlay_force_rescan),
+                color = AccentColor, fontSize = 15.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable { onForceRescan() }
+                    .padding(horizontal = 4.dp.scaled()),
+            )
+        }
     }
 }
 

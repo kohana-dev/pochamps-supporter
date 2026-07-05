@@ -154,6 +154,20 @@ class PipelineDecider {
         return count >= SWITCH_CONFIRM_COUNT
     }
 
+    /**
+     * 한 ROI(슬롯)의 판정 상태만 초기화한다(P18 강제 재인식). 오인식 고착 탈출용:
+     *  - lastKey/lastRoot: 직전 표시 key/root 무효화 → 다음 인식이 즉시 반영(동일 스킵/히스테리시스 우회).
+     *  - pendingSwitch: 저신뢰 전환 대기 카운트 리셋.
+     *  - remembered choice: 이 슬롯의 후보 선택 기억 제거(잘못 기억된 선택도 초기화).
+     *  - **핀은 여기서 건드리지 않는다** — 핀 해제는 호출부(강제 재인식) 정책에 맡긴다.
+     */
+    fun resetSlot(roiIndex: Int) {
+        lastKeyByRoi.remove(roiIndex)
+        lastRootByRoi.remove(roiIndex)
+        pendingSwitchByRoi.remove(roiIndex)
+        choiceByRoi.remove(roiIndex)
+    }
+
     /** 새 배틀 세션/캡처 재시작 시 상태 초기화. */
     fun reset() {
         lastKeyByRoi.clear()

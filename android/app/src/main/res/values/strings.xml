@@ -99,6 +99,11 @@
     <string name="overlay_exit_x">✕</string>
     <string name="overlay_recognition_fail">인식 실패 🔍</string>
     <string name="overlay_tap_to_search">탭하여 검색</string>
+    <!-- P18: 모든 카드에서 수동 지정 + 강제 재인식 -->
+    <string name="overlay_manual_search">🔍</string>
+    <string name="overlay_manual_search_desc">직접 지정</string>
+    <string name="overlay_force_rescan">↻</string>
+    <string name="overlay_force_rescan_desc">다시 인식</string>
     <string name="overlay_expand">펼치기</string>
     <string name="overlay_collapse">접기</string>
     <string name="overlay_section_stats">종족값</string>

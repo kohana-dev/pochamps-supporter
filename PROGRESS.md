@@ -1253,3 +1253,50 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 
 ### 남은 실기기 전용 항목(불변)
 - 실기기 실 대전에서 싱글/더블 토글 최종 확인(특히 싱글 이름표 위치·더블 2밴드 정합). 자동 형식 감지는 향후(P20 스코프 밖). P17 이하 잔여 항목 동일.
+
+## P18 — 모든 카드에서 수동 지정(🔍) + 강제 재인식(↻) (오인식 카드 교정·고착 탈출, v0.1.5) ✅ 완료 (2026-07-05)
+
+> **실기기 리포트 대응**: (1) 앱이 **자신 있게 틀린 포켓몬**을 띄우면 고칠 방법이 없었다 — 수동 검색은
+> "인식 실패" 카드에서만 열렸고(`FailureCard`), 정상적으로(잘못) 매칭된 카드엔 진입점이 없었다. "바꾸기"(후보 시트)는
+> 이름충돌 후보(윈디↔히스이윈디)끼리만 전환이라 전혀 다른 포켓몬 오인식은 못 고쳤다. (2) 일시적 오인식/고착 시
+> "지금 다시 읽어"가 없었다(자동 재스캔은 히스테리시스/하트비트로 지연될 수 있음).
+> → **회복 사다리**: 자동 재스캔 → ↻ 강제 재인식 → 🔍 수동 지정(직접 검색·핀) → ROI 보정(P14) → 진단(P14).
+
+### 기능 1 — 모든 카드에서 수동 지정 (🔍)
+- **정상 매칭 카드에도** 그립 바 우측에 🔍 아이콘 추가(`OverlayCard.onOpenSearch`). 눌러 P16 검색 시트(가로 flyout/IME 포커스 토글 재사용) 열고 → 선택 시 그 슬롯 **핀**(`onPinSlot` → `PipelineDecider.pin`) → 파이프라인이 덮어쓰지 않음. **무엇이 떠 있든(정상/오인식) 올바른 포켓몬으로 교정** 가능.
+- 기존 핀 배지/해제(`📌 Unpin`) 동선 유지 — 핀 상태 표시 + 해제 버튼. 해제하면 다시 자동 인식(`onUnpinSlot` → `decider.unpin`).
+- 실패 카드의 기존 검색 진입(본문 탭)은 그대로 유지.
+
+### 기능 2 — 강제 재인식 (↻)
+- **정상 카드 + 실패 카드에 ↻ 버튼**(`OverlayCard.onForceRescan` / `FailureCard.onForceRescan`). 의미 = "이 슬롯 강제 재인식":
+  - `RecognitionPipeline.forceRescan(slot)` — (1) 핀 상태면 먼저 **핀 해제**("지금 다시 읽어"=자동 인식 복귀, 핀 유지 시 결과가 무시돼 아무 일도 안 남 → 자연스러운 쪽 선택), (2) `PipelineDecider.resetSlot(slot)`(lastKey/lastRoot/pending/기억선택 초기화 — 오인식 고착 탈출), (3) `FrameGate.invalidate(slot)`.
+  - **`FrameGate.invalidate(roiIndex)`**(순수 로직 신규): 해당 ROI 의 lastSignature/lastTrigger 무효화 → **다음 프레임이 "최초"로 판정** → 정지 화면(변화 없음)이라도 게이트 **1회 우회**해 즉시 OCR. 하트비트 주기([maxIntervalMs]) 전이라도 즉시 재스캔.
+  - **`PipelineDecider.resetSlot(roiIndex)`**(신규): 슬롯 판정 상태만 초기화. **핀은 건드리지 않음**(핀 해제 정책은 호출부 `forceRescan` 가 명시).
+  - 카드는 지우지 않음(다음 인식 올 때까지 직전 정보 유지 — 깜빡임 방지). 잘못 굳은 카드는 다음 프레임 OCR 로 교체.
+- 슬롯 개별(더블이면 카드별 ↻ — `invalidate`/`resetSlot` 은 해당 ROI 만 영향, 유닛 테스트로 검증).
+
+### 테스트 (+8, 순수 JVM → 201)
+- `FrameGateTest`(+3): `invalidate` 후 변화 없어도 다음 프레임 즉시 통과, `invalidate` 는 해당 ROI 만 영향(더블 개별 ↻), 미존재 ROI invalidate=no-op.
+- `PipelineDeciderTest`(+5): `resetSlot` 후 같은 key 도 재갱신, `resetSlot` 슬롯 독립, `resetSlot` 기억 선택 초기화(best 복귀), `resetSlot` 은 핀 미변경, 핀해제+resetSlot 후 재인식 반영(forceRescan 실동작 재현).
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720, 데모 세션)
+- **(a) 정상 카드에서 수동 지정 → 다른 포켓몬 핀**: 데모 카드 **Garchomp(Dragon/Ground)** → 그립 바 🔍 탭 → 검색 시트 좌측 flyout(P16) → "arcanine" 입력(IME 포커스 토글 동작) → Arcanine 선택 → **카드가 Arcanine(Fire)로 교체 + `📌 Unpin` 배지** 표시. 전혀 다른 포켓몬 오인식을 교정·핀함을 입증. (`field_samples/p18/a1~a4`)
+- **(b) ↻ 강제 재인식 트리거**: 정상 카드 ↻ 탭 → `onForceRescan(slot=0)` 콜백 발화(logcat `CaptureService: 데모: 강제 재인식(slot=0) — 파이프라인 없음(no-op)`). 데모는 파이프라인이 없어 no-op 로그이나 UI→Renderer→Service→`pipeline.forceRescan` 배선 E2E 확인(실캡처 시 decider 리셋+FrameGate 무효화는 JVM 테스트로 보증).
+- **(c) 핀 해제 후 자동 인식 복귀**: `📌 Unpin` 탭 → 배지 사라짐(`onUnpinSlot` → `decider.unpin`). (`field_samples/p18/c1`)
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 201/201, failures 0**(P20 193 + P18 8).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 7 / versionName 0.1.5**.
+
+### 코드 변경 요약
+- `capture/FrameGate.kt`(`invalidate(roiIndex)` 순수 로직 — 게이트 1회 우회).
+- `capture/PipelineDecider.kt`(`resetSlot(roiIndex)` — 슬롯 판정 상태만 초기화, 핀 미변경).
+- `capture/RecognitionPipeline.kt`(`forceRescan(slot)` — 핀 해제 + resetSlot + FrameGate invalidate).
+- `overlay/OverlayCard.kt`(`OverlayCard.onOpenSearch`/`onForceRescan` 그립 바 🔍/↻ 아이콘, `FailureCard.onForceRescan` ↻).
+- `overlay/OverlayRenderer.kt`(`onForceRescan` 콜백 파라미터 + CardStack/FailureCard 배선, ↻ 시 UI 핀 배지 정리).
+- `capture/CaptureService.kt`(`onForceRescan` → `pipeline.forceRescan`, 데모 fallback `demoPinSlot`/rescan 로그).
+- strings(ko/en): 🔍/↻ 및 접근성 설명 4종.
+- build.gradle.kts: versionCode 7 / 0.1.5.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 실 대전에서 ↻ 강제 재인식이 정지 화면 고착을 실제로 깨는지 최종 확인(에뮬 데모는 파이프라인 no-op — JVM 테스트로 로직 보증). 🔍 수동 지정은 실캡처에서도 데모와 동일 경로(`pipeline.pinSlot`). P17 이하 잔여 항목 동일.

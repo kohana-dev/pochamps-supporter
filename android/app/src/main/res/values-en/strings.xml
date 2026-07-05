@@ -99,6 +99,11 @@
     <string name="overlay_exit_x">✕</string>
     <string name="overlay_recognition_fail">Not recognized 🔍</string>
     <string name="overlay_tap_to_search">Tap to search</string>
+    <!-- P18: manual override on any card + force re-scan -->
+    <string name="overlay_manual_search">🔍</string>
+    <string name="overlay_manual_search_desc">Set manually</string>
+    <string name="overlay_force_rescan">↻</string>
+    <string name="overlay_force_rescan_desc">Re-scan</string>
     <string name="overlay_expand">Expand</string>
     <string name="overlay_collapse">Collapse</string>
     <string name="overlay_section_stats">Base stats</string>

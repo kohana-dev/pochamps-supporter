@@ -123,6 +123,44 @@ class FrameGateTest {
     }
 
     @Test
+    fun invalidate_후_변화없어도_다음프레임_즉시통과() {
+        // P18 강제 재인식: invalidate 하면 정지 화면(변화 없음)이라도 다음 프레임이 즉시 통과해야 한다.
+        val gate = FrameGate(minIntervalMs = 700, maxIntervalMs = 5000)
+        val sig = IntArray(48) { 100 }
+        assertTrue(gate.shouldProcess(0, sig, nowMs = 0)) // 최초
+        // 같은 화면 계속 — 하트비트 한참 전이라 통과 안 함.
+        assertFalse(gate.shouldProcess(0, sig.copyOf(), nowMs = 100))
+        // 강제 재인식 → 게이트 무효화.
+        gate.invalidate(0)
+        // 변화가 전혀 없어도(정지 화면) 다음 프레임은 "최초"로 판정 → 즉시 통과.
+        assertTrue(gate.shouldProcess(0, sig.copyOf(), nowMs = 150))
+    }
+
+    @Test
+    fun invalidate_는_해당ROI만_영향() {
+        // P18: 한 슬롯 무효화가 다른 슬롯 게이트 상태를 건드리지 않아야 한다(더블배틀 개별 ↻).
+        val gate = FrameGate(minIntervalMs = 0)
+        val s0 = intArrayOf(10, 10, 10, 10)
+        val s1 = intArrayOf(20, 20, 20, 20)
+        assertTrue(gate.shouldProcess(0, s0, nowMs = 0))
+        assertTrue(gate.shouldProcess(1, s1, nowMs = 0))
+        // 슬롯0만 무효화.
+        gate.invalidate(0)
+        // 슬롯0 은 변화 없어도 통과(최초 취급).
+        assertTrue(gate.shouldProcess(0, s0.copyOf(), nowMs = 10))
+        // 슬롯1 은 여전히 이전 서명 보유 → 변화 없으면 통과 안 함.
+        assertFalse(gate.shouldProcess(1, s1.copyOf(), nowMs = 20))
+    }
+
+    @Test
+    fun invalidate_존재하지않는ROI는_noop() {
+        // 아직 서명이 없는 ROI 를 무효화해도 예외 없이 안전(이미 최초 상태).
+        val gate = FrameGate(minIntervalMs = 0)
+        gate.invalidate(5)
+        assertTrue(gate.shouldProcess(5, intArrayOf(1, 2, 3, 4), nowMs = 0))
+    }
+
+    @Test
     fun reset_후_다시_최초프레임() {
         val gate = FrameGate(minIntervalMs = 0)
         val sig = intArrayOf(9, 9, 9, 9)

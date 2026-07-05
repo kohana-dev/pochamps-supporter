@@ -105,6 +105,23 @@ class RecognitionPipeline(
     fun unpinSlot(slot: Int) {
         decider.unpin(slot)
     }
+
+    /**
+     * 슬롯 강제 재인식(P18 회복 사다리). 오인식이 고착/정지 화면에 굳었을 때 즉시 다시 읽게 한다.
+     *  1) 핀 상태면 먼저 핀을 해제한다 — "지금 다시 읽어"는 자동 인식 복귀를 의미하므로 자연스러운 선택
+     *     (핀을 유지한 채 재인식하면 결과가 무시되어 아무 일도 안 일어난다). UI 에선 핀 중 ↻ 를 눌러도
+     *     이 경로로 핀이 풀리고 재인식된다.
+     *  2) Decider 의 해당 슬롯 판정 상태 초기화(lastKey/pending/기억 선택) → 다음 인식 즉시 반영.
+     *  3) FrameGate 해당 ROI 무효화 → **다음 프레임에서 게이트 1회 우회**(정지 화면이라도 즉시 OCR).
+     *
+     * 카드 자체는 지우지 않는다(다음 인식이 올 때까지 직전 정보 유지 — 깜빡임 방지). 잘못 굳은 카드는
+     * 다음 프레임 OCR 결과로 교체된다.
+     */
+    fun forceRescan(slot: Int) {
+        if (decider.isPinned(slot)) decider.unpin(slot)
+        decider.resetSlot(slot)
+        frameGate.invalidate(slot)
+    }
     /** 최신 프레임만 유지하는 conflate 채널(backpressure). */
     private val frameChannel = Channel<FrameJob>(Channel.CONFLATED)
 
