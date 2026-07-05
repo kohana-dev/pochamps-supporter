@@ -102,6 +102,29 @@ class CaptureService : Service() {
             Log.i(TAG, "MediaProjection onStop — 세션 종료, 중단 카드 표시")
             mainHandler.post { handleCaptureStopped() }
         }
+
+        /**
+         * [P35 리포트2] API 34+ — 캡처 콘텐츠가 가상 디스플레이와 다르게 리사이즈되면 통지된다.
+         * "단일 앱" 공유를 고르면 콘텐츠 크기가 전체 디스플레이와 달라진다 → 부분 캡처로 추정되면
+         * 오버레이에 "전체 화면 공유로 다시 시작" 안내 카드를 1회 띄운다.
+         */
+        override fun onCapturedContentResize(width: Int, height: Int) {
+            val m = resources.displayMetrics
+            val single = SingleAppShareDetector.looksLikeSingleApp(
+                contentWidth = width,
+                contentHeight = height,
+                displayWidth = m.widthPixels,
+                displayHeight = m.heightPixels,
+            )
+            Log.i(
+                TAG,
+                "onCapturedContentResize: content=${width}x$height display=${m.widthPixels}x${m.heightPixels} " +
+                    "singleApp=$single",
+            )
+            if (single) {
+                mainHandler.post { overlay?.showSingleAppHintOnce() }
+            }
+        }
     }
 
     /** 미인식 안내 배너용: 마지막으로 카드를 갱신한 시각(uptimeMs). 0=아직 없음. */

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -808,6 +809,50 @@ fun BattleNamesHintBanner(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.clickable(onClick = onDismiss),
         )
+    }
+}
+
+/**
+ * [P35 리포트2] 단일 앱 공유 감지 안내 카드. Android 14+ 의 화면 공유에서 "단일 앱"을 고르면
+ * 캡처 콘텐츠가 전체 화면과 달라 ROI(이름표 위치)가 어긋나 인식이 실패한다. 이 카드는 그 상황을
+ * 감지하면 1회 떠서 "전체 화면 공유로 다시 시작"을 유도한다(재시작 = P7 재동의 재사용).
+ */
+@Composable
+fun SingleAppShareCard(
+    onRestart: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(min = 200.dp.scaled(), max = 320.dp.scaled())
+            .background(Color(0xE6_5D4037), RoundedCornerShape(12.dp.scaled()))
+            .padding(horizontal = 14.dp.scaled(), vertical = 12.dp.scaled()),
+        verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+    ) {
+        Text(
+            stringResource(R.string.overlay_single_app_title),
+            color = ChipTextColor, fontSize = 14.sp.scaled(), fontWeight = FontWeight.Bold,
+        )
+        Text(
+            stringResource(R.string.overlay_single_app_body),
+            color = SubTextColor, fontSize = 12.sp.scaled(),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp.scaled()),
+        ) {
+            Text(
+                stringResource(R.string.overlay_single_app_restart),
+                color = AccentColor, fontSize = 13.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(onClick = onRestart),
+            )
+            Text(
+                stringResource(R.string.sheet_close),
+                color = SubTextColor, fontSize = 13.sp.scaled(),
+                modifier = Modifier.clickable(onClick = onDismiss),
+            )
+        }
     }
 }
 

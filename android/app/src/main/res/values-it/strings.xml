@@ -26,7 +26,13 @@
     <string name="step_battle_body">In PokeChamps → Impostazioni → attiva \'Display Battle Names\'. Il nome dell\'avversario deve comparire sullo schermo per essere riconosciuto.</string>
     <string name="step_battle_ack">Capito</string>
     <string name="step_start_title">Avvia</string>
-    <string name="step_start_body">Dopo aver approvato l\'acquisizione dello schermo, l\'overlay compare sopra il gioco.</string>
+    <string name="step_start_body">Nella finestra di acquisizione schermo, scegli \'Intero schermo (Entire screen)\'. \'Singola app\' non funziona per il riconoscimento. Dopo l\'approvazione, l\'overlay compare sopra il gioco.</string>
+
+    <!-- P35 report 2 -->
+    <string name="share_entire_screen_hint">Nella finestra di condivisione, scegli \'Intero schermo (Entire screen)\'. \'Singola app\' non viene riconosciuta.</string>
+    <string name="overlay_single_app_title">Serve la condivisione dell\'intero schermo</string>
+    <string name="overlay_single_app_body">Sembra una condivisione \'Singola app\'. Per riconoscere il gioco, scegli \'Intero schermo (Entire screen)\' e riavvia.</string>
+    <string name="overlay_single_app_restart">Riavvia</string>
     <string name="home_preview_title">Anteprima</string>
     <string name="home_preview_desc">Guarda come appare la scheda info con una demo, senza acquisizione schermo.</string>
     <string name="home_preview_running_desc">Tocca di nuovo la scheda demo per scorrere altri esempi di Pokémon.</string>

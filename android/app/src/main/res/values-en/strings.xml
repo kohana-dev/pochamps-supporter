@@ -26,7 +26,13 @@
     <string name="step_battle_body">In PokeChamps → Settings → turn ON \'Display Battle Names\'. The opponent name must appear on screen to be recognized.</string>
     <string name="step_battle_ack">Got it</string>
     <string name="step_start_title">Start</string>
-    <string name="step_start_body">After you approve screen capture, the overlay appears over your game.</string>
+    <string name="step_start_body">In the screen-capture dialog, be sure to choose \'Entire screen\'. Choosing \'Single app\' will not work for recognition. After you approve, the overlay appears over your game.</string>
+
+    <!-- P35 report 2: entire-screen guidance + single-app detection card -->
+    <string name="share_entire_screen_hint">In the share dialog, choose \'Entire screen\'. \'Single app\' will not be recognized.</string>
+    <string name="overlay_single_app_title">Entire screen share needed</string>
+    <string name="overlay_single_app_body">This looks like a \'Single app\' share. To recognize your game, choose \'Entire screen\' and start again.</string>
+    <string name="overlay_single_app_restart">Restart</string>
 
     <string name="home_preview_title">Preview</string>
     <string name="home_preview_desc">See how the info card looks with a demo — no screen capture needed.</string>

@@ -26,7 +26,13 @@
     <string name="step_battle_body">在 PokeChamps → 设置 → 开启\'Display Battle Names\'。对手名称须显示在屏幕上才能被识别。</string>
     <string name="step_battle_ack">知道了</string>
     <string name="step_start_title">开始</string>
-    <string name="step_start_body">同意屏幕捕获后，浮层会显示在游戏之上。</string>
+    <string name="step_start_body">在屏幕捕获对话框中，请务必选择\'整个屏幕（Entire screen）\'。选择\'单个应用\'将无法识别。同意后，浮层会显示在游戏之上。</string>
+
+    <!-- P35 报告2 -->
+    <string name="share_entire_screen_hint">在共享对话框中选择\'整个屏幕（Entire screen）\'。\'单个应用\'无法识别。</string>
+    <string name="overlay_single_app_title">需要共享整个屏幕</string>
+    <string name="overlay_single_app_body">似乎是以\'单个应用\'共享启动的。要识别游戏，请选择\'整个屏幕（Entire screen）\'并重新开始。</string>
+    <string name="overlay_single_app_restart">重新开始</string>
     <string name="home_preview_title">预览</string>
     <string name="home_preview_desc">无需屏幕捕获，通过演示查看信息卡片的样子。</string>
     <string name="home_preview_running_desc">再次点击演示卡片可循环切换其他宝可梦示例。</string>

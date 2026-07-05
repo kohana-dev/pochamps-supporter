@@ -307,6 +307,13 @@ class OverlayRenderer(
     private val captureHealth =
         mutableStateOf<com.pochamps.supporter.capture.CaptureHealth.Health?>(null)
 
+    /**
+     * [P35 리포트2] "단일 앱 공유" 감지 안내 카드 표시 여부(세션당 1회). true 면 안내 카드 표시.
+     * 전체 화면 공유로 다시 시작하도록 유도(재시작 진입점 = P7 재동의 재사용, [onRestart]).
+     */
+    private val showSingleAppHint = mutableStateOf(false)
+    private var singleAppHintShown = false
+
     /** 형식 토글 콜백(P20). 서비스가 주입. */
     private var onSelectFormat: (com.pochamps.supporter.data.BattleFormat) -> Unit = {}
 
@@ -626,6 +633,22 @@ class OverlayRenderer(
     /** 배너 닫기(유저 탭 or 인식 성공 시). */
     fun dismissBattleNamesHint() {
         showBattleNamesHint.value = false
+    }
+
+    /**
+     * [P35 리포트2] "단일 앱 공유" 감지 안내 카드 1회 표시. 캡처 콜백이 부분 캡처를 감지하면 호출한다.
+     * 전체 화면 공유로 다시 시작해야 인식됨을 알리고, 재시작 진입점을 제공한다(세션당 1회).
+     */
+    fun showSingleAppHintOnce() {
+        if (singleAppHintShown) return
+        if (captureStopped.value) return
+        singleAppHintShown = true
+        showSingleAppHint.value = true
+    }
+
+    /** 단일 앱 안내 닫기(유저 탭). */
+    fun dismissSingleAppHint() {
+        showSingleAppHint.value = false
     }
 
     /** 진단 모드 on/off(설정 토글). off 면 스트립 숨김. */
@@ -1211,6 +1234,14 @@ class OverlayRenderer(
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.
             if (hintVisible) {
                 BattleNamesHintBanner(onDismiss = { dismissBattleNamesHint() })
+            }
+            // [P35 리포트2] 단일 앱 공유 감지 안내 카드(1회). 전체 화면 공유로 재시작 유도.
+            val singleAppVisible by showSingleAppHint
+            if (singleAppVisible) {
+                SingleAppShareCard(
+                    onRestart = { touchInteraction(); onRestart() },
+                    onDismiss = { touchInteraction(); dismissSingleAppHint() },
+                )
             }
             val primarySlot = slotOrder.minOrNull()
             for (slot in slotOrder.sorted()) {

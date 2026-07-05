@@ -26,7 +26,13 @@
     <string name="step_battle_body">In PokeChamps → Einstellungen → \'Display Battle Names\' aktivieren. Der Gegnername muss auf dem Bildschirm erscheinen, um erkannt zu werden.</string>
     <string name="step_battle_ack">Verstanden</string>
     <string name="step_start_title">Starten</string>
-    <string name="step_start_body">Nach der Zustimmung zur Bildschirmaufnahme erscheint das Overlay über dem Spiel.</string>
+    <string name="step_start_body">Wähle im Bildschirmaufnahme-Dialog unbedingt \'Gesamter Bildschirm (Entire screen)\'. \'Einzelne App\' funktioniert nicht für die Erkennung. Nach der Zustimmung erscheint das Overlay über dem Spiel.</string>
+
+    <!-- P35 report 2 -->
+    <string name="share_entire_screen_hint">Wähle im Freigabe-Dialog \'Gesamter Bildschirm (Entire screen)\'. \'Einzelne App\' wird nicht erkannt.</string>
+    <string name="overlay_single_app_title">Freigabe des gesamten Bildschirms nötig</string>
+    <string name="overlay_single_app_body">Das sieht nach einer \'Einzelne App\'-Freigabe aus. Wähle \'Gesamter Bildschirm (Entire screen)\' und starte neu.</string>
+    <string name="overlay_single_app_restart">Neu starten</string>
     <string name="home_preview_title">Vorschau</string>
     <string name="home_preview_desc">Sieh dir per Demo an, wie die Infokarte aussieht – ohne Bildschirmaufnahme.</string>
     <string name="home_preview_running_desc">Tippe erneut auf die Demokarte, um weitere Pokémon-Beispiele durchzugehen.</string>

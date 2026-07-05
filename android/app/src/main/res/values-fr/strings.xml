@@ -26,7 +26,13 @@
     <string name="step_battle_body">Dans PokeChamps → Paramètres → activez \'Display Battle Names\'. Le nom de l\'adversaire doit apparaître à l\'écran pour être reconnu.</string>
     <string name="step_battle_ack">Compris</string>
     <string name="step_start_title">Démarrer</string>
-    <string name="step_start_body">Après avoir approuvé la capture d\'écran, la superposition apparaît par-dessus le jeu.</string>
+    <string name="step_start_body">Dans la boîte de dialogue de capture d\'écran, choisissez bien \'Tout l\'écran (Entire screen)\'. \'Une seule appli\' ne fonctionne pas pour la reconnaissance. Après approbation, la superposition apparaît par-dessus le jeu.</string>
+
+    <!-- P35 report 2 -->
+    <string name="share_entire_screen_hint">Dans la boîte de dialogue de partage, choisissez \'Tout l\'écran (Entire screen)\'. \'Une seule appli\' n\'est pas reconnue.</string>
+    <string name="overlay_single_app_title">Partage de tout l\'écran requis</string>
+    <string name="overlay_single_app_body">Cela ressemble à un partage \'Une seule appli\'. Pour reconnaître le jeu, choisissez \'Tout l\'écran (Entire screen)\' et redémarrez.</string>
+    <string name="overlay_single_app_restart">Redémarrer</string>
     <string name="home_preview_title">Aperçu</string>
     <string name="home_preview_desc">Voyez à quoi ressemble la carte d\'info avec une démo, sans capture d\'écran.</string>
     <string name="home_preview_running_desc">Touchez à nouveau la carte de démo pour parcourir d\'autres exemples de Pokémon.</string>

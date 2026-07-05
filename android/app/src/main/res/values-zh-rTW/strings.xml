@@ -26,7 +26,13 @@
     <string name="step_battle_body">在 PokeChamps → 設定 → 開啟\'Display Battle Names\'。對手名稱須顯示在畫面上才能被辨識。</string>
     <string name="step_battle_ack">知道了</string>
     <string name="step_start_title">開始</string>
-    <string name="step_start_body">同意畫面擷取後，浮層會顯示在遊戲之上。</string>
+    <string name="step_start_body">在畫面擷取對話框中，請務必選擇\'整個畫面（Entire screen）\'。選擇\'單一應用程式\'將無法辨識。同意後，浮層會顯示在遊戲之上。</string>
+
+    <!-- P35 報告2 -->
+    <string name="share_entire_screen_hint">在分享對話框中選擇\'整個畫面（Entire screen）\'。\'單一應用程式\'無法辨識。</string>
+    <string name="overlay_single_app_title">需要分享整個畫面</string>
+    <string name="overlay_single_app_body">似乎是以\'單一應用程式\'分享啟動的。要辨識遊戲，請選擇\'整個畫面（Entire screen）\'並重新開始。</string>
+    <string name="overlay_single_app_restart">重新開始</string>
     <string name="home_preview_title">預覽</string>
     <string name="home_preview_desc">無需畫面擷取，透過示範查看資訊卡片的樣子。</string>
     <string name="home_preview_running_desc">再次點擊示範卡片可循環切換其他寶可夢範例。</string>

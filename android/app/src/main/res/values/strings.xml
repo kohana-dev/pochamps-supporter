@@ -27,7 +27,13 @@
     <string name="step_battle_body">포챔스 → 설정 → \'Display Battle Names\'(배틀명 표시)를 ON 으로 해주세요. 상대 이름이 화면에 떠야 인식됩니다.</string>
     <string name="step_battle_ack">확인했어요</string>
     <string name="step_start_title">시작</string>
-    <string name="step_start_body">화면 캡처 동의 후 오버레이가 게임 위에 표시됩니다.</string>
+    <string name="step_start_body">화면 캡처 동의 창에서 반드시 \'전체 화면(Entire screen)\'을 선택하세요. \'단일 앱\'을 고르면 인식이 되지 않습니다. 동의 후 오버레이가 게임 위에 표시됩니다.</string>
+
+    <!-- P35 리포트2: 전체 화면 공유 안내 + 단일 앱 감지 카드 -->
+    <string name="share_entire_screen_hint">화면 공유 창에서 \'전체 화면(Entire screen)\'을 선택하세요. \'단일 앱\'은 인식되지 않습니다.</string>
+    <string name="overlay_single_app_title">전체 화면 공유가 필요해요</string>
+    <string name="overlay_single_app_body">\'단일 앱\' 공유로 시작된 것 같습니다. 인식하려면 \'전체 화면(Entire screen)\'을 선택해 다시 시작하세요.</string>
+    <string name="overlay_single_app_restart">다시 시작</string>
 
     <!-- 미리보기(데모) -->
     <string name="home_preview_title">미리보기</string>

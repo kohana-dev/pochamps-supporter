@@ -27,7 +27,13 @@
     <string name="step_battle_body">ポケチャンプ → 設定 →「Display Battle Names」(バトル名表示)をONにしてください。相手の名前が画面に出ていないと認識できません。</string>
     <string name="step_battle_ack">確認しました</string>
     <string name="step_start_title">開始</string>
-    <string name="step_start_body">画面キャプチャに同意すると、オーバーレイがゲーム上に表示されます。</string>
+    <string name="step_start_body">画面キャプチャの同意ダイアログでは必ず\'全画面（Entire screen）\'を選んでください。\'単一のアプリ\'では認識できません。同意するとオーバーレイがゲーム上に表示されます。</string>
+
+    <!-- P35 レポート2: 全画面共有の案内 + 単一アプリ検出カード -->
+    <string name="share_entire_screen_hint">共有ダイアログで\'全画面（Entire screen）\'を選んでください。\'単一のアプリ\'は認識されません。</string>
+    <string name="overlay_single_app_title">全画面共有が必要です</string>
+    <string name="overlay_single_app_body">\'単一のアプリ\'共有で開始されたようです。認識するには\'全画面（Entire screen）\'を選んで再開してください。</string>
+    <string name="overlay_single_app_restart">再開</string>
 
     <string name="home_preview_title">プレビュー</string>
     <string name="home_preview_desc">画面キャプチャなしで、情報カードの見え方をデモで確認します。</string>
