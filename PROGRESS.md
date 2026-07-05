@@ -4,6 +4,65 @@
 
 ---
 
+## P31 — 항상 다국어 OCR (모든 스크립트 병렬, 9언어 매칭, 캡처언어 설정 제거) (v0.1.16) ✅ 완료 (2026-07-05)
+
+> **실사용자 확정 요구:** 이 게임은 **전세계 유저와 매칭**되어 상대 이름의 **언어가 게임마다·상대마다 바뀔 수 있다.** "게임 언어를 하나 골라 고정"하던 방식(captureLang)은 틀렸다 — 상대가 어느 언어로 떠도 읽어야 한다.
+
+### 핵심 사실 (ML Kit)
+단일 "모든 스크립트" 인식기는 없다. 스크립트별 별도 모델(**Latin / Korean / Japanese / Chinese**)이고, 각 CJK 인식기는 라틴도 함께 읽는다. 라틴 하나가 en/de/es/fr/it 5개 언어를 커버 → **4개 인식기로 9개 언어 전부 커버.** bundled(P9)라 APK 동봉·다운로드 불필요.
+
+### 기능 1 — OcrEngine 다국어화 (병렬·병합)
+- `ocr/OcrEngine.kt`: 언어별 recognizer 하나 대신 **4개 bundled recognizer(Latin/Korean/Japanese/Chinese)를 모두 보유**.
+- `recognizeTagged`/`recognizeAllLines`: 4개를 코루틴 `async` + `awaitAll` 로 **병렬 실행** → 각 인식기 라인을 **정규화 기준 중복 제거하며 병합**. 지연 = 순차 합이 아니라 **가장 느린 하나 수준**.
+- 라틴 이름은 4개 인식기가 다 읽으므로 중복 병합 시 어느 스크립트들이 읽었는지 태그를 모은다(`TaggedLine.scripts`).
+- 종료 시 4개 모두 close. `language` 파라미터는 **무시**(호환 시그니처만 유지).
+- 순수 병합/태그 로직(`mergeTagged`, `OcrScript.tag`)은 JVM 테스트 가능.
+
+### 기능 2 — 매칭 전 언어(9개) 확장 + 오탐 억제
+- `matching/NameMatcher.kt`: **9개 언어 lookup 을 하나로 합친(normalizedToRoot)** 매칭은 P12 이후 이미 구조상 존재 — OCR 라인 × 9개 언어 사전 중 최소 편집거리 매칭. 완전일치(거리 0) 우선.
+- **fuzzy 임계 보수화(P31):** 항상-다국어로 사전 키가 9배로 늘어 fuzzy 오탐 표면이 커지므로, **정규화 길이 ≤ `MIN_FUZZY_LEN`(3) 인 라인은 fuzzy 금지(완전일치만)**. 엉뚱한 스크립트 인식기가 만든 짧은 garbage 라인이 우연히 짧은 이름에 fuzzy 매칭되는 것을 막는다. 긴 이름의 1글자 오타 교정은 유지.
+- "엉뚱한 인식기가 만든 garbage 라인"은 닫힌 사전(208종) 매칭이 자연히 걸러준다(핵심 안전장치).
+
+### 기능 3 — 캡처 언어 선택 UI 제거
+- `ui/MainActivity.kt`: 설정에서 **"게임 화면 언어(인식용)" 선택 칩 제거**. `AppSettings.language`(captureLang)는 `@Deprecated` + OCR/매칭 경로 무사용.
+- **displayLang(앱 표시 언어)는 그대로 유지** — 매칭은 도감키로, 카드는 displayLang 으로 렌더(P19 구조 보존).
+- `capture/CaptureService.kt`: `OcrEngine()` 를 언어 없이 생성. `captureLang` 필드 제거.
+
+### 기능 4 — 진단 보강 (어느 스크립트로 읽혔나)
+- `capture/DiagState.kt`: `SlotDiag.matchedScripts` 추가 — 매칭 라인을 읽은 스크립트 태그(K/J/C/L). 진단 스트립에 `[L]`/`[K]` 로 노출.
+- `capture/RecognitionPipeline.kt`: `scriptTagFor`(순수) 로 매칭 결과 → 스크립트 태그 되짚기. debug 로그에도 남김.
+
+### 테스트 (+16, 순수 JVM → 266)
+- `OcrMultiLangMergeTest`(+7, 신규): 라틴 다인식기 중복 병합·스크립트 합침, 대소문자/공백 동일화, 서로 다른 언어 라인 각각 보존, 등장순서·빈라인 무시, `scriptTagFor` 태그(L/K/null).
+- `MultiLangMatchTest`(+8, 신규): garchomp/gyarados/gardevoir/absol 을 **ko/en/ja/de/fr/zh-cn/zh-tw** 표기로 전부 같은 root 매칭, matchBest 다언어 혼재 라인 최적 채택, 완전일치 우선, **짧은 garbage fuzzy 억제**, 긴 이름 1글자 오타 교정 유지.
+- `DiagStateTest`(+1): 스크립트 태그 `[L]` 노출 / 태그 없으면 생략.
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, swiftshader SW-GPU)
+- **(a) 한국어 user 스크린샷**(`user_s25_double.jpeg`, 로컬 전용): ROI0 `나인테일`→ninetales **OK**, ROI1 `파이어로`→talonflame **OK**(captureLang 없이).
+- **(b) 영어 field_sample**(라틴 경로): `hippowdon`→hippowdon **OK**, `sylveon`→sylveon **OK**.
+- **(c) 일본어/중국어 이름**: 실크롭 합성 없이 **`MultiLangMatchTest`(JVM) 로 ja/zh 매칭 경로 검증**(솔직 보고 — 에뮬 실크롭은 한/영만).
+- **(d) captureLang 설정이 사라졌는데도 4/4 전부 인식.**
+- **4-병렬 지연(에뮬 SW-GPU, warm):** avg **~7356ms** / p50 **7924ms** / max 8142ms.
+  - **단일 인식기(latin, K3 실측, 동일 에뮬):** avg **~5619ms** / p50 4632ms. → 4-병렬은 단일 대비 **약 1.3~1.7×**(4× 아님) = 병렬이 정상 동작(가장 느린 하나 + SW-GPU 경합에 지배).
+  - ⚠️ **발열/지연 정직 보고:** 이 절대값(수 초)은 **swiftshader 소프트웨어 GPU 에뮬**의 값이라 실기기(NNAPI/HW-GPU)에선 한 자릿수~수십 ms 로 떨어진다. 그래도 4개 인식기를 상시 병행하므로 실기기 발열은 P29/P30 대비 소폭 증가 가능 — 실기기 장시간 세션에서 재확인 필요(잔여).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 266/266, failures 0**(기존 250 + P31 16).
+- `:app:assembleRelease`(R8) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter/data/dist/). **versionCode 18 / versionName 0.1.16**.
+- androidTest `OcrFieldTest#p31_…` → BUILD SUCCESSFUL(에뮬 인식 4/4). 기존 `p29`(한국어 user)·`k3`(영어) 회귀 통과.
+
+### 코드 변경 요약
+- `ocr/OcrEngine.kt`: 4-recognizer 상시 보유, `recognizeTagged`(병렬 async/awaitAll + 병합), `mergeTagged`/`TaggedLine`/`OcrScript.tag`(순수), `close` 4개, `language` 무시.
+- `matching/NameMatcher.kt`: `MIN_FUZZY_LEN`(3) 보수화 — 짧은 라인 완전일치만.
+- `capture/DiagState.kt`: `SlotDiag.matchedScripts` + `formatSlot` 태그 노출.
+- `capture/RecognitionPipeline.kt`: `recognizeTagged` 사용, `scriptTagFor`(순수), 진단에 스크립트 태그.
+- `capture/CaptureService.kt`: `OcrEngine()`(언어 없음), `captureLang` 필드 제거.
+- `ui/MainActivity.kt`: 캡처 언어 선택 칩 제거(표시 언어만 유지).
+- `data/AppSettings.kt`: `language` `@Deprecated`.
+- `build.gradle.kts`: versionCode 18 / 0.1.16.
+
+---
+
 ## P30 — 확장 카드 가로 2컬럼 레이아웃 + 모서리 드래그 리사이즈 (v0.1.15) ✅ 완료 (2026-07-05)
 
 > **실사용자 리포트(가로 화면):** 확장(EXPANDED) 카드를 다 열면 세로가 짧은 가로 화면에서 **화면 아래가 잘린다**(종족값 6줄 + 기술 + 상성이 세로로 쌓임). 또 크기 조절이 설정의 이산 칩(80/100/125/150%)뿐이라 미세조정이 어렵다.

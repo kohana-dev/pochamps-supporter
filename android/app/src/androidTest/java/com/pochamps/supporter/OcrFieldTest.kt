@@ -389,6 +389,90 @@ class OcrFieldTest {
         )
     }
 
+    /**
+     * [P31] 항상-다국어 OCR 실측 — captureLang 없이 OcrEngine() 하나로 어느 언어 이름이든 읽고,
+     * 4개 스크립트 인식기 **병렬** 지연(ms)을 측정한다(발열 우려 판단용).
+     *
+     * (a) 한국어 user 스크린샷(user_s25_double.jpeg) → 나인테일/파이어로 매칭(기존 유지).
+     * (b) 영어 field_sample(hippowdon 등) → 라틴 경로 매칭.
+     * (c) 4-병렬 지연 로그(avg/p50/max). 단일 인식기 대비 4배가 아니라 "가장 느린 하나" 수준인지.
+     * (d) captureLang 을 전혀 안 넘겨도(=null 기본) 전부 인식.
+     *
+     * 실행: ./gradlew :app:connectedDebugAndroidTest --tests "*.OcrFieldTest.p31*"
+     *       adb logcat -s OcrFieldTest
+     */
+    @Test
+    fun p31_항상다국어_OCR_실측_및_4병렬지연(): Unit = runBlocking {
+        val repo: PokedexRepository = AssetsPokedexLoader.load(ctx)
+        val cropper = RoiCropper() // 기본 2x
+        // captureLang 없이 생성 — 항상 4개 스크립트 병렬 인식(P31).
+        val ocr = OcrEngine()
+        Log.i(TAG, "########## P31 항상-다국어 OCR 실측(captureLang 없음) ##########")
+
+        val latencies = mutableListOf<Long>()
+        var hits = 0
+        var total = 0
+
+        // (a) 한국어 user 스크린샷(로컬 전용). 없으면 스킵(로그만).
+        val userAsset = "field_samples/user_s25_double.jpeg"
+        val userBmp = loadAsset(userAsset)
+        if (userBmp != null) {
+            warmup(ocr, userBmp)
+            val cfg = RoiConfig.DEFAULT_LANDSCAPE_DOUBLES
+            val expected = mapOf(0 to "ninetales", 1 to "talonflame")
+            Log.i(TAG, "===== (a) 한국어 user 스크린샷 =====")
+            for (cr in cropper.cropAll(userBmp, cfg)) {
+                total++
+                val t0 = System.nanoTime()
+                val lines = runCatching { ocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+                val ms = (System.nanoTime() - t0) / 1_000_000
+                latencies += ms
+                val match = repo.matchBest(lines)
+                val root = (match as? MatchResult.Matched)?.root
+                val ok = root != null && root == expected[cr.roiIndex]
+                if (ok) hits++
+                Log.i(TAG, "  (a) ROI${cr.roiIndex} lines='${lines.joinToString("|").ifEmpty { "(빈)" }}' root=${root ?: "-"} 4병렬지연=${ms}ms ${if (ok) "OK" else "MISS"}")
+                cr.bitmap.recycle()
+            }
+            userBmp.recycle()
+        } else {
+            Log.w(TAG, "  (a) user 스크린샷 없음(로컬 전용) — 스킵")
+        }
+
+        // (b) 영어 field_sample(라틴 경로) — captureLang 없이도 라틴 인식기가 잡아야.
+        Log.i(TAG, "===== (b) 영어 field_samples(라틴 경로) =====")
+        val enCases = listOf(
+            "field_samples/en_single_hippowdon.jpg" to "hippowdon",
+            "field_samples/real_sylveon_battle.jpg" to "sylveon",
+        )
+        for ((asset, expect) in enCases) {
+            val bmp = loadAsset(asset)
+            if (bmp == null) { Log.w(TAG, "$asset 로드 실패"); continue }
+            warmup(ocr, bmp)
+            for (cr in cropper.cropAll(bmp, RoiConfig.DEFAULT_LANDSCAPE_SINGLE)) {
+                total++
+                val t0 = System.nanoTime()
+                val lines = runCatching { ocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+                val ms = (System.nanoTime() - t0) / 1_000_000
+                latencies += ms
+                val match = repo.matchBest(lines)
+                val root = (match as? MatchResult.Matched)?.root
+                val ok = root != null && normalizeEq(root, expect)
+                if (ok) hits++
+                Log.i(TAG, "  (b) ${short(asset)} lines='${lines.joinToString("|").ifEmpty { "(빈)" }}' root=${root ?: "-"} 4병렬지연=${ms}ms ${if (ok) "OK" else "MISS"}")
+                cr.bitmap.recycle()
+            }
+            bmp.recycle()
+        }
+        ocr.close()
+
+        val avg = if (latencies.isNotEmpty()) latencies.average() else 0.0
+        val p50 = latencies.sorted().getOrNull(latencies.size / 2) ?: 0
+        Log.i(TAG, "===== P31 요약: 인식 $hits/$total | 4병렬지연 avg=${"%.0f".format(avg)}ms p50=${p50}ms max=${latencies.maxOrNull()}ms =====")
+        // 회귀 방어: 라틴 경로(b)는 반드시 인식돼야(captureLang 없이도).
+        assertTrue("P31: captureLang 없이 라틴 경로 인식 실패(hits=$hits/$total, logcat 확인)", hits >= 1)
+    }
+
     /** 비트맵을 factor 배로 스케일(0.5=축소, 3=확대). filter=true. */
     private fun scaleBitmap(src: Bitmap, factor: Float): Bitmap {
         val m = Matrix().apply { postScale(factor, factor) }
