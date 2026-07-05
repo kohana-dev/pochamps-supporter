@@ -996,8 +996,11 @@ class OverlayRenderer(
                 interactive = mode.interactive,
                 minimized = isMinimized,
                 dragModifier = handleDrag,
-                onToggle = { toggleInteraction() },
-                // 길게 누르기 → 카드/컨트롤 전체 최소화 ↔ 복원(P21 통합).
+                // 최소화 상태(👁 "복원")에서는 탭이 곧 복원이어야 한다(라벨과 일치, 실기기 버그 수정).
+                //  - 최소화중: 탭 → 복원(toggleMinimized).
+                //  - 평상시: 탭 → 통과↔조작 전환.
+                onToggle = { if (minimized.value) toggleMinimized() else toggleInteraction() },
+                // 길게 누르기 → 카드/컨트롤 전체 최소화 ↔ 복원(P21 통합, 어느 상태서든 동작).
                 onLongPress = { toggleMinimized() },
             )
         }

@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.1.11" // 토글 핸들 가로 게임 가시성·위치 clamp·회전 재보정·크게+라벨·자동복귀 12초 (P25)
+        versionCode = 14
+        versionName = "0.1.12" // 최소화 상태에서 탭=복원 수정 (P26)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
