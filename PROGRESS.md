@@ -1116,3 +1116,47 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 **수정**: FrameGate 하트비트(DEFAULT_MAX_INTERVAL_MS=1500) — 화면 변화가 없어도 1.5s마다 강제 재스캔 → 보류된 전환 확정 + 임계값이 놓친 변화 회수. 히스테리시스의 오인식 억제는 유지(변화 프레임의 단발 약매칭은 여전히 억제, 정지 후 하트비트로 확정).
 **검증**: 유닛 155/155(FrameGateTest +2: 정지화면 하트비트 통과 / 변화 즉시통과 공존). versionCode 3 / 0.1.1.
 **미완**: 에뮬 E2E 재현(정지 A→정지 B 전환)은 위임 서브에이전트가 비정상 종료(프롬프트 인젝션 의심, 0 tool_uses)로 미수행 — 유닛 회귀 테스트가 교착 로직을 직접 커버하며, 실기기 리포터가 실환경에서 재확인 예정.
+
+## P16 — 오버레이 UX 3종 개선 (카드 크기 · 가로 후보 flyout · 앱 종료, v0.1.2)
+
+실기기 리포트 3건 대응. 스코프는 아래 3기능 + 검증/배포로 한정.
+
+### 기능 1 — 오버레이 카드 크기 조절
+- `data/AppSettings.overlayScale`(Float, 영속): 저장 시 `OverlayScale.snap` 으로 허용 단계(0.8/1.0/1.25/1.5)에 스냅 + [MIN,MAX] 클램프. 기본 1.0.
+- `overlay/OverlayScale.kt`(신규, 순수 JVM): 스냅/클램프/라벨. NaN·무한대 → 기본값.
+- **밀도 기반 스케일**(graphicsLayer 아님): `LocalOverlayScale` CompositionLocal + `Dp.scaled()`/`TextUnit.scaled()` 로 OverlayCard·시트·확장패널의 모든 dp/sp 를 곱함 → 잘림 없이 창(WRAP_CONTENT) 크기가 자연히 따라감.
+- MainActivity 설정에 스케일 칩(80/100/125/150%). 저장 즉시 `ACTION_APPLY_SCALE`(startService, FGS 승격 안 함 — 미실행 시 즉시 stopSelf)로 실행 중 오버레이에 `setScale` 반영. 서비스 재시작/데모 재탭 시에도 `onStartCommand` 가 최신값 반영.
+
+### 기능 2 — 가로에서 후보 시트를 옆으로 (버그픽스)
+- **버그**: 가로에서 "바꾸기"(후보 선택) 시트가 아래로 펼쳐져 화면 세로를 꽉 채우고 잘림.
+- `overlay/SheetLayout.kt`(신규, 순수 JVM): 시트 열림 배치·창위치 계산.
+  - **가로** → 측면 flyout(SIDE). 카드 오른쪽에 시트 폭이 들어가면 RIGHT, 아니면 왼쪽 flip(LEFT). 커진 창(Row)이 화면을 넘으면 x/y clamp(넘치면 반대쪽/위쪽으로).
+  - **세로** → 아래 전개(BELOW) 유지 + 커진 창 하단 넘침 시 위로 clamp.
+  - `close`: 시트 닫히면 카드 크기 기준으로 화면 안 clamp.
+- `OverlayRenderer`: 시트 열릴 때 orientation 판정 → `CompositionLocalProvider(LocalOverlayScale)` 아래 측면(Row: 방향에 따라 시트/카드 순서) vs 아래(Column) 배치. `repositionForSheet`/`clampWindowIntoScreen` 가 측정된 실제 창크기로 화면 안으로 당김. 측면 flyout 시 시트 리스트 최대 높이를 화면 높이 70%로 clamp(세로 잘림 방지). 후보 3+ 여도 시트 내부 스크롤로 커버.
+- 확장 패널/메가 세그먼트/수동검색 시트 점검: 확장 패널은 기존 스크롤+자동축소 유지 + 창 위치 clamp 로 화면 밖 방지. 수동검색 시트도 동일 측면화(`SheetContent` 공통 경로, 검색은 IME 포커스 토글 유지).
+
+### 기능 3 — 앱 종료 수단
+- **FGS 상시 알림 "종료" 액션**: `buildNotification` 에 `Notification.Action`(→ `ACTION_STOP` PendingIntent). 탭 → stopSelf → onDestroy(캡처 중지·오버레이 제거·프로젝션 정리).
+- **오버레이 카드 종료 진입점**: 주 카드 그립 바 **오래누르기**(`detectTapGestures.onLongPress`) + 작은 **✕ 버튼**(터치 영역만 clickable, P5 focusable 패턴 유지) → `onExit` → `exitAll`(stopSelf).
+- MainActivity "중지" 는 기존대로 `stopIntent`(ACTION_STOP) 경유 동일 정리 경로. 종료 후 오버레이 창 0·활성 알림 0·서비스 없음 확인.
+
+### 코드 변경 요약
+- `overlay/OverlayScale.kt`(신규, 순수), `overlay/SheetLayout.kt`(신규, 순수).
+- `overlay/OverlayCard.kt`: `LocalOverlayScale`+`scaled()` 전면 적용, `onExit`(그립 롱프레스+✕), 시트 `maxSheetHeight` 파라미터.
+- `overlay/OverlayRenderer.kt`: `setScale`/스케일 상태·`onExit`·측면 flyout 배치(`CardStack`/`SheetContent`)·`repositionForSheet`/`clampWindowIntoScreen`.
+- `capture/CaptureService.kt`: `exitAll`·알림 종료 액션·`ACTION_APPLY_SCALE`·`initialScale`/`onExit` 배선·onStartCommand 스케일 반영.
+- `ui/MainActivity.kt`: 설정에 `OverlayScaleSelector`(칩) + 즉시 반영 인텐트.
+- `data/AppSettings.kt`: `overlayScale`.
+- strings(ko/en): 카드 크기 설정·알림 "종료"·✕.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 172/172, failures 0**(P15 155 + P16 17: OverlayScaleTest 8 + SheetLayoutTest 9).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 4 / versionName 0.1.2**.
+- 에뮬 실측(AVD Kohana_QA_API_35, 가로 1280x720):
+  - (a) 스케일 80/100/150% 3단 렌더 — 밀도 기반이라 잘림 없이 카드/폰트/패딩·창 크기 함께 변화, **실행 중 즉시 반영**. (`field_samples/p16/scale_{80,100,150}.png`)
+  - (b) arcanine 데모(윈디 2후보) 가로에서 "바꾸기" → 후보 시트가 **카드 오른쪽으로 flyout**, 두 후보 모두 세로 잘림 없이 표시. (`field_samples/p16/candidate_flyout_landscape.png`)
+  - (c) 알림 "종료" 탭 → 오버레이 사라짐·상태바 알림 0·서비스 없음. (`field_samples/p16/notification_exit_action.png`, `after_exit_clean.png`)
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 가로 회전 실시간 재배치·롱프레스 종료 촉감 · P15 이하 잔여 항목 동일.

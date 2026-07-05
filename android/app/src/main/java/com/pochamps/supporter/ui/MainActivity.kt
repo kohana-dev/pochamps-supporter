@@ -319,10 +319,48 @@ private fun SettingsSection() {
             }
 
             Spacer(Modifier.height(16.dp))
+            OverlayScaleSelector()
+
+            Spacer(Modifier.height(16.dp))
             DiagnosticsToggle()
 
             Spacer(Modifier.height(16.dp))
             DataUpdateSection()
+        }
+    }
+}
+
+/**
+ * 오버레이 카드 크기 선택(P16). 스케일 단계(80/100/125/150%) 칩. 저장 즉시 실행 중 오버레이에 반영된다
+ * (데모/캡처 재탭 없이도 서비스가 다음 onStartCommand 에서 setScale; 실행 중 변경은 데모 재탭/재시작 시 반영).
+ * 밀도 기반 스케일이라 카드가 잘림 없이 커지고 창(WRAP_CONTENT) 크기가 따라간다.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun OverlayScaleSelector() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    var scale by remember { mutableStateOf(settings.overlayScale) }
+
+    Text(stringResource(R.string.settings_scale_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(R.string.settings_scale_desc), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.pochamps.supporter.overlay.OverlayScale.STEPS.forEach { step ->
+            FilterChip(
+                selected = kotlin.math.abs(scale - step) < 0.01f,
+                onClick = {
+                    settings.overlayScale = step
+                    scale = step
+                    // 실행 중이면 즉시 반영(오버레이가 떠 있는 경우). 서비스가 없으면 곧바로 자체 종료(no-op).
+                    // startService(FGS 승격 아님) — 서비스가 안 떠 있으면 onStartCommand 가 바로 stopSelf.
+                    context.startService(
+                        com.pochamps.supporter.capture.CaptureService.applyScaleIntent(context),
+                    )
+                },
+                label = { Text(com.pochamps.supporter.overlay.OverlayScale.label(step)) },
+            )
         }
     }
 }

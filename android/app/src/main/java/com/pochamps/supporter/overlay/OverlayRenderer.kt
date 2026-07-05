@@ -8,12 +8,16 @@ import android.view.WindowManager
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,10 +68,19 @@ class OverlayRenderer(
     private val autoCollapseMs: Long = 8_000L,
     /** 캡처 중단 카드의 "재시작" 탭 콜백(서비스가 MainActivity 를 다시 연다). */
     onRestart: () -> Unit = {},
+    /**
+     * 종료(P16): 오버레이 카드 그립 오래누르기/×/알림 종료로 앱·오버레이·캡처를 완전히 끈다.
+     * 서비스가 주입 — 캡처 중지 + 오버레이 제거 + stopSelf.
+     */
+    onExit: () -> Unit = {},
+    /** 오버레이 카드 초기 스케일(P16, 설정값). 이후 [setScale] 로 즉시 갱신. */
+    initialScale: Float = OverlayScale.DEFAULT,
 ) : LifecycleOwner, SavedStateRegistryOwner {
 
     private val windowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     // --- 소유자(lifecycle / savedState) ---
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -117,6 +130,25 @@ class OverlayRenderer(
     /** 캡처 재시작 콜백(중단 카드의 "재시작" 탭). 서비스가 주입. */
     private var onRestart: () -> Unit = {}
 
+    /** 종료 콜백(P16). 카드 오래누르기/×/알림 종료. 서비스가 주입. */
+    private var onExit: () -> Unit = {}
+
+    /** 오버레이 카드 스케일(P16). 설정 변경 시 [setScale] 로 즉시 반영. */
+    private val scale = mutableStateOf(OverlayScale.DEFAULT)
+
+    /**
+     * 시트 측면 flyout 방향(P16). null=아직 미정(또는 세로/시트 없음), RIGHT/LEFT=측면 배치.
+     * [repositionForSheet] 가 SheetLayout 계산 후 세팅 → Row 배치 순서와 창 위치가 함께 갱신된다.
+     */
+    private val sheetSideDir = mutableStateOf<SheetLayout.SideDir?>(null)
+
+    /**
+     * 시트 열기 직전(=카드만 있을 때)의 창 크기 스냅샷(px). 시트가 열리며 커진 창을 화면 안으로
+     * 재조정할 때 카드 크기 기준으로 SheetLayout 을 계산하려고 보관한다. 시트 열림 콜백에서 갱신.
+     */
+    private var cardOnlyW = 0
+    private var cardOnlyH = 0
+
     /**
      * 장시간 미인식 시 "배틀명 표시 ON" 1회 안내 배너 노출 여부(DESIGN.md 5장 이름 미표시).
      * true 면 배너 표시. [dismissBattleNamesHint] 로 닫으면 세션 동안 다시 안 뜸.
@@ -136,6 +168,16 @@ class OverlayRenderer(
     init {
         savedStateController.performRestore(null)
         this.onRestart = onRestart
+        this.onExit = onExit
+        scale.value = OverlayScale.snap(initialScale)
+    }
+
+    /**
+     * 오버레이 카드 스케일 갱신(P16). 설정에서 변경 즉시 다음 렌더에 반영된다(상태 반영 → recompose).
+     * 스케일은 밀도 기반이라 창(WRAP_CONTENT) 크기가 자연히 따라가고 잘림이 없다.
+     */
+    fun setScale(newScale: Float) {
+        scale.value = OverlayScale.snap(newScale)
     }
 
     fun show() {
@@ -333,6 +375,83 @@ class OverlayRenderer(
         positionStore.save(OverlayPosition(lp.x, lp.y))
     }
 
+    /** 화면이 가로 방향인지(측면 flyout 판정). */
+    private fun isLandscape(): Boolean {
+        val m = context.resources.displayMetrics
+        return m.widthPixels > m.heightPixels
+    }
+
+    /** 시트 열기 직전 카드만 있는 창 크기를 스냅샷(측면 flyout 계산 기준). */
+    private fun captureCardBounds() {
+        val view = composeView ?: return
+        if (view.width > 0) cardOnlyW = view.width
+        if (view.height > 0) cardOnlyH = view.height
+    }
+
+    /**
+     * 시트가 열려 커진 창(=카드+시트)이 화면을 넘지 않도록 위치를 재조정한다(P16).
+     *  - 가로: SheetLayout 이 측면 방향(RIGHT/LEFT)을 정하고, Row 배치 순서를 위해 [sheetSideDir] 세팅.
+     *          그 후 실제 측면 배치가 recompose 되면 한 번 더 측정해 창 x/y 를 화면 안으로 clamp.
+     *  - 세로: 아래 전개 → 커진 창 높이가 화면 아래를 넘으면 창 y 를 위로 당겨 clamp.
+     */
+    private fun repositionForSheet() {
+        val lp = layoutParams ?: return
+        val view = composeView ?: return
+        val m = context.resources.displayMetrics
+        val cardW = cardOnlyW.takeIf { it > 0 } ?: view.width
+        val cardH = cardOnlyH.takeIf { it > 0 } ?: view.height
+
+        if (isLandscape()) {
+            // 측면 flyout: 시트 폭은 아직 미측정 → 스케일 반영한 시트 기본폭 추정(widthIn max 320dp).
+            val sheetW = (280 * m.density * scale.value).toInt()
+            val sheetH = cardH // 대략 카드 높이만큼(시트 리스트는 화면 높이로 clamp됨).
+            val result = SheetLayout.open(
+                landscape = true,
+                screenWidth = m.widthPixels,
+                screenHeight = m.heightPixels,
+                winX = lp.x,
+                winY = lp.y,
+                cardWidth = cardW,
+                cardHeight = cardH,
+                sheetWidth = sheetW,
+                sheetHeight = sheetH,
+                gap = (8 * m.density).toInt(),
+            )
+            sheetSideDir.value = result.sideDir
+            lp.x = result.windowX
+            lp.y = result.windowY
+            runCatching { windowManager.updateViewLayout(view, lp) }
+            // 측면 배치가 실제로 그려진 뒤 최종 크기로 다시 한 번 화면 안으로 clamp.
+            mainHandler.postDelayed({ clampWindowIntoScreen() }, 32L)
+        } else {
+            sheetSideDir.value = null
+            // 세로: 실제로 커진 뒤 clamp(시트가 아래에 붙어 창 높이가 늘어남).
+            mainHandler.postDelayed({ clampWindowIntoScreen() }, 32L)
+        }
+    }
+
+    /** 시트가 닫히면 측면 방향을 해제하고, 남은 카드가 화면 안에 있게 clamp. */
+    private fun repositionForClose() {
+        sheetSideDir.value = null
+        mainHandler.postDelayed({ clampWindowIntoScreen() }, 32L)
+    }
+
+    /** 현재 창(측정된 실제 크기)이 화면을 넘으면 좌/상단으로 당겨 화면 안으로 clamp. */
+    private fun clampWindowIntoScreen() {
+        val lp = layoutParams ?: return
+        val view = composeView ?: return
+        val m = context.resources.displayMetrics
+        val w = view.width.takeIf { it > 0 } ?: return
+        val h = view.height.takeIf { it > 0 } ?: return
+        val clamped = OverlayPosition(lp.x, lp.y)
+            .clampedTo(m.widthPixels, m.heightPixels, w, h)
+        if (clamped.x != lp.x || clamped.y != lp.y) {
+            lp.x = clamped.x
+            lp.y = clamped.y
+            runCatching { windowManager.updateViewLayout(view, lp) }
+        }
+    }
+
     /**
      * IME 포커스 토글(P5 핵심 수정).
      *
@@ -431,17 +550,63 @@ class OverlayRenderer(
             setFocusable(searchOpen)
         }
 
+        // P16: 가로에서 시트가 열리면 옆으로(측면 flyout) 전개하고 창 위치를 화면 안으로 재조정한다.
+        //  - 시트가 열릴 때/방향이 정해질 때 창 x/y 를 SheetLayout 계산값으로 옮긴다.
+        //  - 세로면 아래 전개(기존) + 커진 창 아래 넘침 clamp.
+        val sheetOpen = sheet != null
+        val sideDir by sheetSideDir
+        androidx.compose.runtime.LaunchedEffect(sheetOpen) {
+            // 카드가 그려진 뒤(다음 프레임) 위치를 잡기 위해 한 틱 양보.
+            kotlinx.coroutines.delay(16L)
+            if (sheetOpen) repositionForSheet() else repositionForClose()
+        }
+
+        val scaleValue by scale
+
+        CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
+            // 측면 flyout 여부: 가로 + 시트 열림 + 방향이 정해짐.
+            if (sheetOpen && isLandscape() && sideDir != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    if (sideDir == SheetLayout.SideDir.LEFT) {
+                        SheetContent(sheet, sideFlyout = true)
+                        CardStack(dragMod, hintVisible, diagVisible, diag)
+                    } else {
+                        CardStack(dragMod, hintVisible, diagVisible, diag)
+                        SheetContent(sheet, sideFlyout = true)
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CardStack(dragMod, hintVisible, diagVisible, diag)
+                    SheetContent(sheet, sideFlyout = false)
+                }
+            }
+        }
+    }
+
+    /** 카드 스택(배너 + 슬롯 카드들 + 진단 스트립). 측면/아래 배치 공통. */
+    @androidx.compose.runtime.Composable
+    private fun CardStack(
+        dragMod: Modifier,
+        hintVisible: Boolean,
+        diagVisible: Boolean,
+        diag: com.pochamps.supporter.capture.DiagState?,
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.
             if (hintVisible) {
                 BattleNamesHintBanner(onDismiss = { dismissBattleNamesHint() })
             }
+            val primarySlot = slotOrder.minOrNull()
             for (slot in slotOrder.sorted()) {
                 // 인식 실패 슬롯 → FailureCard(수동 검색 진입).
                 if (slot in failureSlots && !cardsBySlot.containsKey(slot)) {
                     FailureCard(
-                        dragModifier = if (slot == slotOrder.minOrNull()) dragMod else Modifier,
-                        onOpenSearchSheet = { openSheet.value = SheetState.Search(slot, "") },
+                        dragModifier = if (slot == primarySlot) dragMod else Modifier,
+                        onOpenSearchSheet = { captureCardBounds(); openSheet.value = SheetState.Search(slot, "") },
                     )
                     continue
                 }
@@ -457,7 +622,7 @@ class OverlayRenderer(
                     meta = meta,
                     megaForms = baseCard.megaForms,
                     megaSelection = megaSel,
-                    dragModifier = if (slot == slotOrder.minOrNull()) dragMod else Modifier,
+                    dragModifier = if (slot == primarySlot) dragMod else Modifier,
                     onTapCycle = { cycleStage(slot) },
                     onInteract = { touchExpanded(slot) },
                     onSelectMega = { idx ->
@@ -466,40 +631,58 @@ class OverlayRenderer(
                     },
                     onOpenCandidateSheet = {
                         meta.root?.let { root ->
+                            captureCardBounds()
                             openSheet.value = SheetState.Candidates(slot, root)
                         }
                     },
                     onUnpin = { onUnpinSlot(slot); metaBySlot[slot] = meta.copy(pinned = false) },
+                    // 종료 진입점은 주 카드(첫 슬롯)에만 붙인다(× + 그립 오래누르기).
+                    onExit = if (slot == primarySlot) ({ onExit() }) else null,
                 )
-            }
-
-            // 시트(창 내부 확장): 후보 선택 / 수동 검색. 한 번에 하나.
-            when (val s = sheet) {
-                is SheetState.Candidates -> CandidateSheet(
-                    choices = remember(s.root) { candidateProvider(s.root) },
-                    onPick = { key ->
-                        onChooseCandidate(s.slot, s.root, key)
-                        openSheet.value = null
-                    },
-                    onDismiss = { openSheet.value = null },
-                )
-                is SheetState.Search -> SearchSheet(
-                    query = s.query,
-                    onQueryChange = { openSheet.value = SheetState.Search(s.slot, it) },
-                    results = searchProvider(s.query),
-                    onPick = { key ->
-                        onPinSlot(s.slot, key)
-                        openSheet.value = null
-                    },
-                    onDismiss = { openSheet.value = null },
-                )
-                null -> Unit
             }
 
             // 진단 스트립(P14) — 설정 토글 on 일 때만. 카드 밑에 고정.
             if (diagVisible) {
                 diag?.let { DiagnosticStrip(it) }
             }
+        }
+    }
+
+    /**
+     * 시트(창 내부 확장): 후보 선택 / 수동 검색. 한 번에 하나.
+     * @param sideFlyout 가로 측면 flyout 이면 세로 높이가 잘리지 않게 시트 최대 높이를 화면에 맞춰 clamp.
+     */
+    @androidx.compose.runtime.Composable
+    private fun SheetContent(sheet: SheetState?, sideFlyout: Boolean) {
+        // 측면 flyout 이면 세로 잘림 방지: 시트 리스트 최대 높이를 화면 높이의 대략 절반~7할로 제한.
+        val maxH = if (sideFlyout) {
+            val metrics = context.resources.displayMetrics
+            val density = metrics.density
+            val cap = (metrics.heightPixels * 0.70f / density).dp
+            cap
+        } else Dp.Unspecified
+        when (val s = sheet) {
+            is SheetState.Candidates -> CandidateSheet(
+                choices = remember(s.root) { candidateProvider(s.root) },
+                onPick = { key ->
+                    onChooseCandidate(s.slot, s.root, key)
+                    openSheet.value = null
+                },
+                onDismiss = { openSheet.value = null },
+                maxSheetHeight = if (maxH == Dp.Unspecified) 280.dp else maxH,
+            )
+            is SheetState.Search -> SearchSheet(
+                query = s.query,
+                onQueryChange = { openSheet.value = SheetState.Search(s.slot, it) },
+                results = searchProvider(s.query),
+                onPick = { key ->
+                    onPinSlot(s.slot, key)
+                    openSheet.value = null
+                },
+                onDismiss = { openSheet.value = null },
+                maxSheetHeight = if (maxH == Dp.Unspecified) 240.dp else maxH,
+            )
+            null -> Unit
         }
     }
 

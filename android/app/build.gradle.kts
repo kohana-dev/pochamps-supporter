@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.1" // 카드 고착 버그픽스(FrameGate 하트비트)
+        versionCode = 4
+        versionName = "0.1.2" // 오버레이 UX 3종: 카드 크기 조절 · 가로 후보 flyout · 앱 종료(P16)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

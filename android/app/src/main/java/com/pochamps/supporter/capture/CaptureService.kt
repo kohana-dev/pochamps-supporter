@@ -105,6 +105,13 @@ class CaptureService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_APPLY_SCALE -> {
+                // 카드 스케일 즉시 반영(P16). 오버레이가 떠 있으면 setScale, 없으면 아무것도 안 하고 종료.
+                // (startService 로만 진입 — FGS 로 승격하지 않았으므로 stopSelf 안전.)
+                overlay?.setScale(AppSettings(this).overlayScale)
+                if (overlay == null) stopSelf()
+                return START_NOT_STICKY
+            }
             ACTION_CALIBRATE -> {
                 // ROI 보정 오버레이(P14). MediaProjection 불필요 — SYSTEM_ALERT_WINDOW 만.
                 // 캡처 세션이 이미 떠 있으면 그 위에, 아니면 보정 전용으로 FGS+오버레이만 유지.
@@ -122,6 +129,8 @@ class CaptureService : Service() {
 
         // 1) 오버레이를 **먼저** 띄운다(Android 15 순서 규정).
         ensureOverlayShown()
+        // 카드 스케일(P16) 최신 설정 반영(설정에서 바꾼 뒤 재시작/데모 재탭 시 즉시 적용).
+        overlay?.setScale(AppSettings(this).overlayScale)
 
         // 2) FGS 시작(알림 채널 + 상시 알림).
         //    데모 경로는 MediaProjection 토큰이 없으므로 mediaProjection 타입으로 시작하면
@@ -169,11 +178,20 @@ class CaptureService : Service() {
             searchProvider = { q -> searchHits(q) },
             // 캡처 중단 카드의 "재시작" → 앱(MainActivity) 재실행 후 현재 서비스 정리.
             onRestart = { restartCapture() },
+            // 종료(P16): 카드 오래누르기/× → 캡처 중지 + 오버레이 제거 + stopSelf.
+            onExit = { exitAll() },
+            // 카드 스케일(P16) 설정값으로 초기 렌더.
+            initialScale = AppSettings(this).overlayScale,
         )
         renderer.show()
         // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
         renderer.setDiagnosticsEnabled(AppSettings(this).diagnosticsEnabled)
         overlay = renderer
+    }
+
+    /** 앱/오버레이/캡처 완전 종료(P16). 알림 종료·카드 종료·MainActivity 중지 공통 경로. */
+    private fun exitAll() {
+        stopSelf()
     }
 
     /** 후보 선택 시트용: root 의 후보를 타입칩+사용률과 함께. 사용률 최상위=추천. */
@@ -428,11 +446,31 @@ class CaptureService : Service() {
         else
             @Suppress("DEPRECATION") Notification.Builder(this)
 
+        // 상시 알림 "종료" 액션(P16): 탭하면 ACTION_STOP → 캡처 중지 + 오버레이 제거 + stopSelf.
+        val stopPi = android.app.PendingIntent.getService(
+            this,
+            0,
+            stopIntent(this),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val exitLabel = getString(com.pochamps.supporter.R.string.notif_action_exit)
+        val exitAction = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Notification.Action.Builder(
+                android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+                exitLabel,
+                stopPi,
+            ).build()
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, exitLabel, stopPi).build()
+        }
+
         return builder
             .setContentTitle(getString(com.pochamps.supporter.R.string.notif_title))
             .setContentText(getString(com.pochamps.supporter.R.string.notif_text))
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setOngoing(true)
+            .addAction(exitAction)
             .build()
     }
 
@@ -503,6 +541,7 @@ class CaptureService : Service() {
         const val ACTION_STOP = "com.pochamps.supporter.action.STOP"
         const val ACTION_DEMO = "com.pochamps.supporter.action.DEMO"
         const val ACTION_CALIBRATE = "com.pochamps.supporter.action.CALIBRATE"
+        const val ACTION_APPLY_SCALE = "com.pochamps.supporter.action.APPLY_SCALE"
 
         /** 데모 순환 대상 한 종(표시 key + 후보 시트용 root). root=null 이면 단일 후보. */
         private data class DemoTarget(val key: String, val root: String?)
@@ -538,5 +577,9 @@ class CaptureService : Service() {
         /** 서비스 중지 Intent. */
         fun stopIntent(context: Context): Intent =
             Intent(context, CaptureService::class.java).apply { action = ACTION_STOP }
+
+        /** 카드 스케일 즉시 반영 Intent(P16). 실행 중이 아니면 서비스가 곧바로 자체 종료. */
+        fun applyScaleIntent(context: Context): Intent =
+            Intent(context, CaptureService::class.java).apply { action = ACTION_APPLY_SCALE }
     }
 }

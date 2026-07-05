@@ -40,6 +40,10 @@
     <string name="settings_roi_calibrate">이름 영역 보정 (화면에서 직접)</string>
     <string name="settings_roi_calibrate_need_overlay">보정 화면을 게임 위에 띄우려면 오버레이 권한이 필요합니다.</string>
 
+    <!-- ===== 오버레이 카드 크기(P16) ===== -->
+    <string name="settings_scale_title">오버레이 카드 크기</string>
+    <string name="settings_scale_desc">게임 위 정보 카드의 크기입니다. 실기기에서 너무 크거나 작으면 조정하세요. 바꾸면 바로 적용됩니다.</string>
+
     <!-- ===== 진단 모드(P14 필드테스트 지원) ===== -->
     <string name="settings_diag_title">진단 모드</string>
     <string name="settings_diag_desc">인식이 안 될 때 원인을 바로 보여줍니다. 오버레이에 마지막 OCR 원문·매칭 결과·인식 시각·OCR 빈도를 표시합니다. 다음 실행부터 적용됩니다.</string>
@@ -77,6 +81,7 @@
     <string name="notif_channel_desc">포챔스 서포터가 화면 정보를 읽는 동안 표시됩니다.</string>
     <string name="notif_title">포챔스 서포터 실행 중</string>
     <string name="notif_text">화면에 보이는 상대 포켓몬 정보를 표시합니다.</string>
+    <string name="notif_action_exit">종료</string>
 
     <!-- ===== 오버레이 카드 ===== -->
     <string name="overlay_ability_prefix">특성: </string>
@@ -85,6 +90,7 @@
     <string name="overlay_mega_base">기본</string>
     <string name="overlay_mega_badge">메가</string>
     <string name="overlay_pin_release">📌 고정 해제</string>
+    <string name="overlay_exit_x">✕</string>
     <string name="overlay_recognition_fail">인식 실패 🔍</string>
     <string name="overlay_tap_to_search">탭하여 검색</string>
     <string name="overlay_expand">펼치기</string>

@@ -1,6 +1,7 @@
 package com.pochamps.supporter.data
 
 import android.content.Context
+import com.pochamps.supporter.overlay.OverlayScale
 
 /**
  * 앱 설정(게임 언어 등) 영속 저장소.
@@ -29,11 +30,21 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_DIAG, false)
         set(value) { prefs.edit().putBoolean(KEY_DIAG, value).apply() }
 
+    /**
+     * 오버레이 카드 스케일(P16). 실기기에서 카드가 너무 크거나 작을 때 설정에서 조정한다.
+     * 저장값은 [OverlayScale] 의 허용 단계(0.8/1.0/1.25/1.5) 중 하나로 스냅되고, 범위를 넘으면 클램프된다.
+     * 기본 1.0. 저장 즉시 다음 렌더에 반영(오버레이 재생성).
+     */
+    var overlayScale: Float
+        get() = OverlayScale.snap(prefs.getFloat(KEY_SCALE, OverlayScale.DEFAULT))
+        set(value) { prefs.edit().putFloat(KEY_SCALE, OverlayScale.snap(value)).apply() }
+
     companion object {
         const val DEFAULT_LANG = "ko"
         private const val PREFS_NAME = "app_settings"
         private const val KEY_LANG = "capture_lang"
         private const val KEY_DIAG = "diagnostics_enabled"
+        private const val KEY_SCALE = "overlay_scale"
 
         /** 언어 코드 → 사람이 읽는 이름(설정 UI). */
         val LANGUAGE_LABELS: Map<String, String> = mapOf(

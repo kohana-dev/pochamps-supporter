@@ -40,6 +40,10 @@
     <string name="settings_roi_calibrate">Calibrate name region (on screen)</string>
     <string name="settings_roi_calibrate_need_overlay">Overlay permission is required to show the calibration screen over the game.</string>
 
+    <!-- ===== Overlay card size (P16) ===== -->
+    <string name="settings_scale_title">Overlay card size</string>
+    <string name="settings_scale_desc">Size of the info card over the game. Adjust if it looks too big or too small on your device. Changes apply immediately.</string>
+
     <!-- ===== Diagnostics mode (P14 field-test support) ===== -->
     <string name="settings_diag_title">Diagnostics mode</string>
     <string name="settings_diag_desc">Shows why recognition fails, right away. Displays the last OCR text, match result, last-seen time, and OCR rate on the overlay. Applies from the next run.</string>
@@ -77,6 +81,7 @@
     <string name="notif_channel_desc">Shown while PokeChamps Supporter reads on-screen information.</string>
     <string name="notif_title">PokeChamps Supporter running</string>
     <string name="notif_text">Displays info about the opponent Pokémon visible on screen.</string>
+    <string name="notif_action_exit">Exit</string>
 
     <!-- ===== Overlay card ===== -->
     <string name="overlay_ability_prefix">Ability: </string>
@@ -85,6 +90,7 @@
     <string name="overlay_mega_base">Base</string>
     <string name="overlay_mega_badge">Mega</string>
     <string name="overlay_pin_release">📌 Unpin</string>
+    <string name="overlay_exit_x">✕</string>
     <string name="overlay_recognition_fail">Not recognized 🔍</string>
     <string name="overlay_tap_to_search">Tap to search</string>
     <string name="overlay_expand">Expand</string>
