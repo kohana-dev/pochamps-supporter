@@ -4,6 +4,67 @@
 
 ---
 
+## P24 — 오버레이 기본 터치 통과 + 상호작용 토글 핸들 + 진단 스트립 격하 (v0.1.10) ✅ 완료 (2026-07-05)
+
+> **실사용자 리포트(실기기) 3건 대응:**
+> 1. 게임 터치가 안 됨 — 오버레이 콘텐츠 영역(카드+컨트롤 바+진단 스트립)이 게임 터치를 가로챔.
+> 2. 오버레이가 화면을 너무 많이 가림(=위 터치 영역).
+> 3. 인식 성공 평상시에도 "ocr X회/s" 진단 스트립이 계속 떠서 화면을 가림.
+
+### 근본 원인
+기존 단일 오버레이 창에 `FLAG_NOT_TOUCHABLE` 이 없어, **보이는 카드/컨트롤 영역 전체가 게임 터치를 가로챘다.**
+"작은 창(창=카드)" 전략으로 통과를 흉내 냈지만 콘텐츠가 커질수록 넓은 게임 터치가 막혔다.
+
+### 해결 — "기본 통과 + 필요시 상호작용" 2창 모델
+1. **메인 정보/컨트롤 창**: 기본 플래그에 **`FLAG_NOT_TOUCHABLE` 추가**(+기존 `FLAG_NOT_FOCUSABLE`, `FLAG_LAYOUT_NO_LIMITS`).
+   → 평소 **모든 터치가 게임으로 통과**(게임 100% 조작), 카드·정보는 순수 표시.
+2. **상호작용 토글 핸들 창**(별도 소형 창, ~70×62px, 상시 touchable, 드래그+위치저장):
+   화면 구석 작은 버튼. **탭 → 메인 창의 `FLAG_NOT_TOUCHABLE` 를 잠시 제거(상호작용 모드)**
+   → 카드 펼치기/검색/보정/후보선택/메가/재인식 조작 → **다시 탭하거나 6s 무조작이면 통과 모드로 자동 복귀**
+   (`updateViewLayout` 즉시 반영). 잠금 상태 시각 표시(🔒 통과중 / ✋ 조작중 / 👁 최소화).
+   - 검색 IME 포커스 토글(P5)은 상호작용 모드 안에서 기존대로 동작(focusable=touchable 강제).
+   - 최소화(P21)는 핸들 **길게 누르기**로 통합(메인 창이 통과라 창 안 복원 버튼은 탭 불가 → 핸들로 이관).
+3. **결과**: 평소 게임 완전 터치 + 정보만 표시. 조작 필요 시만 핸들 탭 → 잠깐 상호작용 → 자동 복귀.
+
+### 대안 대비 선택 근거(주석에도 기록)
+"컨트롤 바만 별도 touchable 소형 창" 대안은 카드 상호작용(탭 순환·메가·후보·검색 시트·종료 그립)을
+전부 컨트롤 바로 옮겨야 해 기존 카드 UX/코드(P4·P16·P18·P20·P23)를 대규모 재작성해야 한다.
+2창 모델은 **메인 창 플래그 하나만 토글**하므로 기존 카드 컴포저블/콜백을 그대로 보존하면서 목표를 달성한다.
+
+### 진단/헬스 격하 (item 3)
+- 진단 스트립은 `diagVisible = diagnosticsEnabled && diag != null` 일 때만 표시(기존 유지, 재확인).
+  인식 성공 정상 상태(진단 OFF·기본)에선 절대 안 뜬다.
+- 캡처 헬스: `CaptureHealth.shouldShowCard(h)` 순수 판정 도입 — **정상(HEALTHY)이면 안내 카드 미표시**,
+  문제(검은화면/무프레임)일 때만 표시. 인식 성공 평상시 화면 = **컨트롤/핸들 + 포켓몬 카드**만.
+
+### 코드
+- `overlay/ControlBarLogic.kt`: `InteractionMode` 순수 상태 기계(toggle/touched/evaluate, timeoutMs 기본 6s).
+- `overlay/OverlayRenderer.kt`: `baseFlags(focusable, touchable)` 로 `FLAG_NOT_TOUCHABLE` 조립,
+  핸들 창(`HandleRoot`/`showHandle`/`buildHandleParams`) 추가, `applyMainFlags`/`setInteraction`/`touchInteraction`,
+  최소화 시 메인 창 미렌더(핸들 길게누르기 복원), 카드/컨트롤 조작마다 상호작용 타이머 리셋.
+- `overlay/OverlayCard.kt`: `InteractionHandle`(🔒/✋/👁) 신설, 구 `MinimizedHandle` 제거.
+- `overlay/PrefsOverlayPositionStore.kt`: keyPrefix 지원(메인/핸들 위치 분리 저장, 기본 `overlay_` 하위호환).
+- `capture/CaptureService.kt`: 핸들 위치 저장소(`handle_` 접두사) 주입.
+- `capture/CaptureHealth.kt`: `shouldShowCard(health)` 판정 + `OverlayRenderer.updateCaptureHealth` 연결.
+- 문자열: `overlay_handle_passthrough`(🔒)/`overlay_handle_interacting`(✋)/`overlay_handle_minimized`(👁) 9개 로케일 추가,
+  미사용 `overlay_handle_dot` 제거.
+
+### 검증
+- JVM 테스트 **226 통과**(218 → +8: `InteractionMode` 토글/타임아웃/조작리셋 6, `shouldShowCard` 2). 회귀 없음.
+- 에뮬 실측(AVD `Kohana_QA_API_35`, 데모 오버레이):
+  - **(a) 게임 터치 통과 실증**: `dumpsys window` — 메인 카드 창 `fl=NOT_FOCUSABLE NOT_TOUCHABLE LAYOUT_NO_LIMITS`,
+    핸들 창 `fl=NOT_FOCUSABLE LAYOUT_NO_LIMITS`(통과 아님). **카드 위 좌표를 탭하니 그 터치가 아래 액티비티의
+    "Stop" 버튼으로 통과**되어 캡처가 중지되고 오버레이 2창이 사라짐(= 카드가 게임 터치를 막지 않음).
+  - **(b) 핸들 탭 → 상호작용 → 자동 복귀**: 핸들 탭 후 메인 창 플래그가 `NOT_TOUCHABLE` 제거로 바뀌고,
+    7s 무조작 후 다시 `NOT_TOUCHABLE` 복귀(플래그 타임라인으로 확인). 핸들 아이콘 🔒→✋ 전환.
+  - **(c) 정상 인식 시 스트립/헬스 미표시**: 카드+컨트롤+핸들만 표시(스크린샷).
+  - **(d) 진단 ON**: 컨트롤 바 "Diag" 하이라이트. 데모는 DiagState 없음 → 스트립은 `diag != null` 게이트로 정상적으로 미표시.
+    (실캡처 시 DiagState 생성되면 표시 — P14 동작 보존.)
+- 스크린샷: `field_samples/p24/{a_demo_overlay_passthrough, b_interaction_mode_handle, b_card_expanded, d_diag_on_strip}.png`.
+- `:app:testDebugUnitTest` + `:app:assembleRelease` 통과. release 데이터 URL 유지. **versionCode 12 / versionName 0.1.10**.
+
+---
+
 ## P22 — 실기기 기반 더블배틀 ROI 기본값 교정 (v0.1.8) ✅ 완료 (2026-07-05)
 
 > **실기기 리포트 대응**: 실사용자(Galaxy S25+, 19.5:9)가 **실제 안드로이드 포챔스 더블배틀 스크린샷**을 제공.
