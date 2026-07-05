@@ -44,6 +44,12 @@
     <string name="settings_scale_title">Overlay card size</string>
     <string name="settings_scale_desc">Size of the info card over the game. Adjust if it looks too big or too small on your device. Changes apply immediately.</string>
 
+    <!-- ===== Battle format singles/doubles (P20) ===== -->
+    <string name="settings_format_title">Battle format</string>
+    <string name="settings_format_desc">Singles/doubles switches both the recognition region (1 band vs 2) and move usage (singles vs doubles meta). Use the quick toggle on the overlay to switch per battle.</string>
+    <string name="format_single">Singles</string>
+    <string name="format_doubles">Doubles</string>
+
     <!-- ===== Diagnostics mode (P14 field-test support) ===== -->
     <string name="settings_diag_title">Diagnostics mode</string>
     <string name="settings_diag_desc">Shows why recognition fails, right away. Displays the last OCR text, match result, last-seen time, and OCR rate on the overlay. Applies from the next run.</string>

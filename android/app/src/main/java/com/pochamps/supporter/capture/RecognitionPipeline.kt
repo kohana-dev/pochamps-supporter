@@ -37,7 +37,8 @@ import kotlinx.coroutines.launch
  * @param roiConfigProvider 감시/크롭할 ROI 설정 **공급자**. 프레임마다 최신값을 읽으므로
  *   인앱 ROI 보정 저장(P14)이 다음 프레임부터 즉시 반영된다(재구성 불필요).
  * @param lang 표시 언어(카드 데이터 조립용).
- * @param format 배틀 포맷(사용률 소스).
+ * @param formatProvider 배틀 포맷 **공급자**(사용률 소스, P20). 프레임/카드 조립마다 최신값을 읽으므로
+ *   싱글/더블 토글이 다음 프레임부터 사용률(싱글 vs 더블 메타)에 즉시 반영된다.
  * @param onCardUpdate 슬롯 카드 갱신 콜백(구현이 메인 스레드로 post). (slot, cardData, meta).
  * @param onDiag 진단 스냅샷 콜백(P14 진단 패널). 프레임 처리 후 슬롯별 [SlotDiag] + OCR 빈도를 넘긴다.
  *   기본 no-op(진단 모드 off 여도 오버헤드 무시 가능 — 문자열 조립뿐).
@@ -48,7 +49,7 @@ class RecognitionPipeline(
     private val ocr: OcrEngine,
     private val roiConfigProvider: () -> RoiConfig,
     private val lang: String,
-    private val format: BattleFormat,
+    private val formatProvider: () -> BattleFormat,
     private val frameGate: FrameGate = FrameGate(),
     private val cropper: RoiCropper = RoiCropper(),
     private val decider: PipelineDecider = PipelineDecider(),
@@ -87,7 +88,7 @@ class RecognitionPipeline(
      */
     fun chooseCandidate(slot: Int, root: String, key: String) {
         decider.rememberChoice(slot, root, key)
-        val card = OverlayCardData.fromRepository(repository, key, lang, format) ?: return
+        val card = OverlayCardData.fromRepository(repository, key, lang, formatProvider()) ?: return
         onCardUpdate(slot, card, SlotMeta(root = root, hasMoreCandidates = true))
     }
 
@@ -96,7 +97,7 @@ class RecognitionPipeline(
      */
     fun pinSlot(slot: Int, key: String) {
         decider.pin(slot, key)
-        val card = OverlayCardData.fromRepository(repository, key, lang, format) ?: return
+        val card = OverlayCardData.fromRepository(repository, key, lang, formatProvider()) ?: return
         onCardUpdate(slot, card, SlotMeta(root = null, hasMoreCandidates = false, pinned = true))
     }
 
@@ -215,8 +216,8 @@ class RecognitionPipeline(
             // 판정(순수 로직): 미매칭 유지 / 후보 갱신 / 동일 스킵.
             when (val action = decider.decide(roiIndex, match)) {
                 is PipelineAction.UpdateCard -> {
-                    // [6] 카드 데이터 조립 → [7] 오버레이 슬롯 갱신.
-                    val card = OverlayCardData.fromRepository(repository, action.key, lang, format)
+                    // [6] 카드 데이터 조립 → [7] 오버레이 슬롯 갱신. 포맷은 매 갱신 시점 최신값(P20).
+                    val card = OverlayCardData.fromRepository(repository, action.key, lang, formatProvider())
                     if (card != null) {
                         onCardUpdate(
                             action.roiIndex,
@@ -275,6 +276,20 @@ class RecognitionPipeline(
         val pixels = IntArray(rect.width * rect.height)
         frame.getPixels(pixels, 0, rect.width, rect.x, rect.y, rect.width, rect.height)
         return FrameGate.downsampleGray(pixels, rect.width, rect.height)
+    }
+
+    /**
+     * 배틀 형식 전환 시 파이프라인 상태 리셋(P20). 슬롯 수(싱글 1 / 더블 2)와 사용률이 바뀌므로
+     * Decider/FrameGate/진단을 초기화해 이전 형식의 슬롯 판정/선택 기억/핀이 고착되지 않게 한다.
+     * (채널은 열어 둔 채 — 다음 프레임부터 새 형식 ROI/사용률로 재인식.)
+     *
+     * ⚠️ 카드 슬롯 제거(더블→싱글 시 2번째 슬롯 카드 정리)는 오버레이가 담당한다(여기선 판정 상태만).
+     */
+    fun resetForFormatChange() {
+        frameGate.reset()
+        decider.reset()
+        slotDiags.clear()
+        lastMatchAtMs = 0L
     }
 
     /** 파이프라인 종료: 채널 닫고 게이트/판정 초기화. OCR close 는 서비스가 담당. */

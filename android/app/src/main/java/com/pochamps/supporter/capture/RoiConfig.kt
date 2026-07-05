@@ -1,5 +1,7 @@
 package com.pochamps.supporter.capture
 
+import com.pochamps.supporter.data.BattleFormat
+
 /**
  * 화면 비율 기준 ROI 사각형 하나. 값은 0.0~1.0 비율(해상도 독립).
  *
@@ -107,6 +109,15 @@ data class RoiConfig(
         fun default(): RoiConfig = DEFAULT_LANDSCAPE_DOUBLES
 
         /**
+         * 배틀 형식별 기본 ROI(P20). 싱글=1밴드([DEFAULT_LANDSCAPE_SINGLE]),
+         * 더블=2밴드([DEFAULT_LANDSCAPE_DOUBLES]). 형식 토글이 이 값으로 활성 ROI 를 스왑한다.
+         */
+        fun activeDefault(format: BattleFormat): RoiConfig = when (format) {
+            BattleFormat.SINGLES -> DEFAULT_LANDSCAPE_SINGLE
+            BattleFormat.DOUBLES -> DEFAULT_LANDSCAPE_DOUBLES
+        }
+
+        /**
          * 직렬화 문자열 → RoiConfig 파싱(오버라이드 저장/복원용, 순수 JVM).
          * 포맷: "l,t,r,b;l,t,r,b" (ROI 를 ';' 로 구분, 각 값은 ','). 파싱 실패/빈 문자열이면 null.
          */
@@ -135,18 +146,39 @@ data class RoiConfig(
 
 /**
  * RoiConfig 영속 저장소(오버라이드). Android 구현은 SharedPreferences,
- * 테스트 구현은 인메모리. 오버라이드가 없으면 [RoiConfig.default] 사용.
+ * 테스트 구현은 인메모리. 오버라이드가 없으면 형식별 기본값 사용.
+ *
+ * ## P20 — 형식별 오버라이드 분리
+ * 싱글(1밴드)/더블(2밴드)은 밴드 수가 달라 **같은 오버라이드를 공유하면 깨진다**(더블 보정을 싱글에
+ * 적용하면 두 번째 밴드가 붕 뜬다). 그래서 오버라이드를 **형식별로 분리**([BattleFormat] 로 키를 나눔).
+ * 형식별 오버라이드가 없으면 그 형식 기본값([RoiConfig.activeDefault])을 반환한다.
+ *
+ * 하위호환: 무인자 [load]/[save]/[clear]/[effective] 는 더블 형식에 위임한다(기존 호출부 유지).
  */
 interface RoiConfigStore {
-    /** 저장된 오버라이드. 없으면 null(→ 호출부가 default 사용). */
-    fun load(): RoiConfig?
+    /** 형식별 저장된 오버라이드. 없으면 null(→ 호출부가 형식 기본값 사용). */
+    fun load(format: BattleFormat): RoiConfig?
 
-    /** 오버라이드 저장. */
-    fun save(config: RoiConfig)
+    /** 형식별 오버라이드 저장. */
+    fun save(format: BattleFormat, config: RoiConfig)
 
-    /** 오버라이드 제거(기본값으로 복귀). */
-    fun clear()
+    /** 형식별 오버라이드 제거(그 형식 기본값으로 복귀). */
+    fun clear(format: BattleFormat)
 
-    /** 오버라이드가 있으면 그것, 없으면 기본값. */
-    fun effective(): RoiConfig = load() ?: RoiConfig.default()
+    /** 형식별 오버라이드가 있으면 그것, 없으면 그 형식 기본값. */
+    fun effective(format: BattleFormat): RoiConfig =
+        load(format) ?: RoiConfig.activeDefault(format)
+
+    // --- 하위호환(더블 형식 위임). 기존 무인자 호출부 유지용. ---
+    /** @deprecated 형식 인자 버전을 쓸 것. 더블 오버라이드에 위임. */
+    fun load(): RoiConfig? = load(BattleFormat.DOUBLES)
+
+    /** @deprecated 형식 인자 버전을 쓸 것. 더블 오버라이드에 위임. */
+    fun save(config: RoiConfig) = save(BattleFormat.DOUBLES, config)
+
+    /** @deprecated 형식 인자 버전을 쓸 것. 더블 오버라이드에 위임. */
+    fun clear() = clear(BattleFormat.DOUBLES)
+
+    /** @deprecated 형식 인자 버전을 쓸 것. 더블 오버라이드에 위임. */
+    fun effective(): RoiConfig = effective(BattleFormat.DOUBLES)
 }

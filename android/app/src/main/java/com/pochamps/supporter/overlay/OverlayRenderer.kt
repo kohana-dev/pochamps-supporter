@@ -75,6 +75,14 @@ class OverlayRenderer(
     onExit: () -> Unit = {},
     /** 오버레이 카드 초기 스케일(P16, 설정값). 이후 [setScale] 로 즉시 갱신. */
     initialScale: Float = OverlayScale.DEFAULT,
+    /**
+     * 배틀 형식 빠른 토글 콜백(P20). 오버레이의 싱글/더블 세그먼트를 탭하면 호출된다.
+     * 서비스가 설정 저장 + 파이프라인 리셋 + 남는 슬롯 정리를 수행한다. 기본 no-op.
+     */
+    onSelectFormat: (com.pochamps.supporter.data.BattleFormat) -> Unit = {},
+    /** 오버레이 형식 토글 초기 상태(P20, 설정값). */
+    initialFormat: com.pochamps.supporter.data.BattleFormat =
+        com.pochamps.supporter.data.BattleFormat.DOUBLES,
 ) : LifecycleOwner, SavedStateRegistryOwner {
 
     private val windowManager =
@@ -136,6 +144,17 @@ class OverlayRenderer(
     /** 오버레이 카드 스케일(P16). 설정 변경 시 [setScale] 로 즉시 반영. */
     private val scale = mutableStateOf(OverlayScale.DEFAULT)
 
+    /** 현재 배틀 형식(P20, 빠른 토글 세그먼트 표시용). 토글/설정 변경 시 [setFormat] 로 갱신. */
+    private val battleFormat =
+        mutableStateOf(com.pochamps.supporter.data.BattleFormat.DOUBLES)
+
+    /**
+     * 캡처 세션 활성 여부(P20). true 면 카드가 아직 없어도 형식 빠른 토글을 표시한다
+     * (대전 시작~첫 인식 전에도 형식을 미리 바꿀 수 있게). 데모/보정 전용 세션에서는 false 로 두어
+     * 토글을 숨긴다. 서비스가 실캡처 파이프라인 시작 시 [setCaptureActive] 로 켠다.
+     */
+    private val captureActive = mutableStateOf(false)
+
     /**
      * 시트 측면 flyout 방향(P16). null=아직 미정(또는 세로/시트 없음), RIGHT/LEFT=측면 배치.
      * [repositionForSheet] 가 SheetLayout 계산 후 세팅 → Row 배치 순서와 창 위치가 함께 갱신된다.
@@ -172,11 +191,38 @@ class OverlayRenderer(
     private val captureHealth =
         mutableStateOf<com.pochamps.supporter.capture.CaptureHealth.Health?>(null)
 
+    /** 형식 토글 콜백(P20). 서비스가 주입. */
+    private var onSelectFormat: (com.pochamps.supporter.data.BattleFormat) -> Unit = {}
+
     init {
         savedStateController.performRestore(null)
         this.onRestart = onRestart
         this.onExit = onExit
+        this.onSelectFormat = onSelectFormat
         scale.value = OverlayScale.snap(initialScale)
+        battleFormat.value = initialFormat
+    }
+
+    /**
+     * 배틀 형식 표시 갱신(P20). 서비스가 설정 반영 후 호출 → 세그먼트 하이라이트가 즉시 바뀐다.
+     * 슬롯 정리(더블→싱글 시 2번째 카드 제거)는 [pruneSlotsAbove] 로 별도 수행.
+     */
+    fun setFormat(format: com.pochamps.supporter.data.BattleFormat) {
+        battleFormat.value = format
+    }
+
+    /** 캡처 세션 활성 표시(P20). 실캡처 시작 시 켜서 카드 전에도 형식 토글을 노출. */
+    fun setCaptureActive(active: Boolean) {
+        captureActive.value = active
+    }
+
+    /**
+     * 형식 전환 시 남는 슬롯 카드 정리(P20). 더블(2슬롯)→싱글(1슬롯) 전환 시 두 번째 슬롯(index≥1)의
+     * 카드/시트/상태를 제거해 싱글에서 유령 카드가 남지 않게 한다. [maxSlot] 이상 슬롯을 모두 제거.
+     */
+    fun pruneSlotsAbove(maxSlot: Int) {
+        val toRemove = slotOrder.filter { it > maxSlot }.toList()
+        for (s in toRemove) removeCard(s)
     }
 
     /**
@@ -546,7 +592,9 @@ class OverlayRenderer(
         val diagOn by diagEnabled
         val diag by diagState
         val diagVisible = diagOn && diag != null
-        if (slotOrder.isEmpty() && !hintVisible && !diagVisible) return
+        val captureOn by captureActive
+        // 캡처 활성(P20)이면 카드가 없어도 형식 빠른 토글을 위해 렌더한다.
+        if (slotOrder.isEmpty() && !hintVisible && !diagVisible && !captureOn) return
 
         // 자동 축소 타이머: 주기적으로 확장 시각을 확인해 무조작 N초 경과 슬롯을 CARD 로 축소.
         if (autoCollapseMs > 0) {
@@ -628,6 +676,22 @@ class OverlayRenderer(
         diag: com.pochamps.supporter.capture.DiagState?,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 배틀 형식 빠른 토글(P20, 싱글/더블). 대전마다 즉시 전환 — 상단 소형 세그먼트.
+            // 세그먼트만 터치를 받고 그 밖은 게임으로 통과(창=카드 전략 보존). 실캡처 세션에서만 노출.
+            val fmt by battleFormat
+            val captureOn by captureActive
+            if (captureOn) {
+                FormatToggle(
+                    isDoubles = fmt == com.pochamps.supporter.data.BattleFormat.DOUBLES,
+                    onSelect = { doubles ->
+                        onSelectFormat(
+                            if (doubles) com.pochamps.supporter.data.BattleFormat.DOUBLES
+                            else com.pochamps.supporter.data.BattleFormat.SINGLES,
+                        )
+                    },
+                    dragModifier = dragMod,
+                )
+            }
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.
             if (hintVisible) {
                 BattleNamesHintBanner(onDismiss = { dismissBattleNamesHint() })

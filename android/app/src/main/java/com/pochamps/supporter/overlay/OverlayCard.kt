@@ -222,6 +222,53 @@ fun OverlayCard(
     }
 }
 
+/**
+ * 배틀 형식 빠른 토글(P20). 오버레이 상단의 소형 세그먼트 [싱글][더블].
+ * 대전마다 즉시 형식을 바꾼다 — 탭하면 [onSelect] → 서비스가 ROI(밴드 수)/사용률/슬롯을 전환한다.
+ *
+ * 창=카드 bounds/터치 통과 전략 보존: 이 세그먼트 자체만 터치를 받고(clickable),
+ * 그 밖 영역은 여전히 게임으로 통과(창은 WRAP_CONTENT + FLAG_NOT_FOCUSABLE 유지).
+ *
+ * ⚠️ 향후 확장 지점: 여기 표시되는 형식을 자동 감지(장면/슬롯 수 추론) 결과로 자동 갱신하는 훅을 걸 수 있다.
+ *    현재는 수동 토글만(P20 스코프).
+ */
+@Composable
+fun FormatToggle(
+    isDoubles: Boolean,
+    onSelect: (doubles: Boolean) -> Unit,
+    dragModifier: Modifier,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .background(CardBg, RoundedCornerShape(10.dp.scaled()))
+            .then(dragModifier)
+            .padding(horizontal = 6.dp.scaled(), vertical = 4.dp.scaled()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp.scaled()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FormatSegment(stringResource(R.string.format_single), selected = !isDoubles) { onSelect(false) }
+        FormatSegment(stringResource(R.string.format_doubles), selected = isDoubles) { onSelect(true) }
+    }
+}
+
+@Composable
+private fun FormatSegment(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (selected) Color.White else SubTextColor,
+        fontSize = 11.sp.scaled(),
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .background(
+                if (selected) AccentColor.copy(alpha = 0.85f) else Color(0x33_FFFFFF),
+                RoundedCornerShape(6.dp.scaled()),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp.scaled(), vertical = 3.dp.scaled()),
+    )
+}
+
 /** 인식 실패 상태 카드(수동 검색 진입). DESIGN.md 5장 상태별 UX. */
 @Composable
 fun FailureCard(

@@ -177,6 +177,84 @@ class OcrFieldTest {
         }
     }
 
+    /**
+     * [P20] 싱글/더블 형식 전환 실측 — 형식별 ROI(밴드 수)와 사용률(싱글 vs 더블 메타)이 함께 바뀌는지.
+     *
+     * (a) 싱글 샘플(hippowdon/gyarados)이 **싱글 활성 ROI(1밴드, activeDefault(SINGLES))** 로 인식되는지.
+     * (b) 더블 샘플이 **더블 활성 ROI(2밴드)** 로 2종 인식되는지.
+     * (c) 같은 포켓몬(garchomp)의 주요 기술 목록이 형식에 따라 다른지(싱글 메타 vs 더블 메타) —
+     *     OverlayCardData.fromRepository(format=…) 가 형식 사용률을 반영하는지 실측.
+     * logcat(TAG="OcrFieldTest")으로 표 출력.
+     */
+    @Test
+    fun p20_singles_doubles_형식전환_실측(): Unit = runBlocking {
+        val repo: PokedexRepository = AssetsPokedexLoader.load(ctx)
+        val cropper = RoiCropper()
+        Log.i(TAG, "===== P20: 싱글/더블 형식 전환 실측 =====")
+
+        // (a) 싱글 활성 ROI 로 싱글 샘플 인식.
+        val singleCfg = RoiConfig.activeDefault(com.pochamps.supporter.data.BattleFormat.SINGLES)
+        assertTrue("싱글 활성 ROI 는 1밴드여야", singleCfg.rois.size == 1)
+        val singleCases = listOf(
+            Triple("field_samples/en_single_hippowdon.jpg", "en", "hippowdon"),
+            Triple("field_samples/ko_single_gyarados.jpg", "ko", "갸라도스"),
+        )
+        var singleOk = 0
+        for ((asset, lang, expect) in singleCases) {
+            val bmp = loadAsset(asset)
+            if (bmp == null) { Log.w(TAG, "$asset 로드 실패"); continue }
+            val ocr = OcrEngine(lang, Preprocess.NONE)
+            warmup(ocr, bmp)
+            val crops = cropper.cropAll(bmp, singleCfg)
+            val lines = crops.flatMap {
+                val l = runCatching { ocr.recognizeAllLines(it.bitmap) }.getOrNull() ?: emptyList()
+                it.bitmap.recycle(); l
+            }
+            val match = repo.matchBest(lines)
+            val root = (match as? MatchResult.Matched)?.root
+            val names = (match as? MatchResult.Matched)?.candidates?.mapNotNull { it.names.get(lang) } ?: emptyList()
+            val ok = names.any { normalizeEq(it, expect) }
+            if (ok) singleOk++
+            Log.i(TAG, "  (a) single ${short(asset)} bands=${singleCfg.rois.size} lines=$lines root=${root ?: "-"} ${if (ok) "OK" else "MISS"}")
+            ocr.close(); bmp.recycle()
+        }
+
+        // (b) 더블 활성 ROI(2밴드)로 더블 샘플 2종 인식.
+        val doublesCfg = RoiConfig.activeDefault(com.pochamps.supporter.data.BattleFormat.DOUBLES)
+        assertTrue("더블 활성 ROI 는 2밴드여야", doublesCfg.rois.size == 2)
+        val dblBmp = loadAsset("field_samples/en_doubles_typhlosion_charizard.jpg")
+        var doublesMatched = emptySet<String>()
+        if (dblBmp != null) {
+            val ocr = OcrEngine("en", Preprocess.NONE)
+            warmup(ocr, dblBmp)
+            val matched = mutableSetOf<String>()
+            for (cr in cropper.cropAll(dblBmp, doublesCfg)) {
+                val lines = runCatching { ocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+                cr.bitmap.recycle()
+                (repo.matchBest(lines) as? MatchResult.Matched)?.root?.let { matched += it }
+            }
+            doublesMatched = matched
+            Log.i(TAG, "  (b) doubles bands=${doublesCfg.rois.size} matched=$matched")
+            ocr.close(); dblBmp.recycle()
+        }
+
+        // (c) 형식별 사용률 차이(garchomp): 싱글 vs 더블 주요기술 목록이 달라야.
+        val dbl = com.pochamps.supporter.overlay.OverlayCardData
+            .fromRepository(repo, "garchomp", "en", com.pochamps.supporter.data.BattleFormat.DOUBLES)
+        val sgl = com.pochamps.supporter.overlay.OverlayCardData
+            .fromRepository(repo, "garchomp", "en", com.pochamps.supporter.data.BattleFormat.SINGLES)
+        val dblMoves = dbl?.topMoves?.map { it.label } ?: emptyList()
+        val sglMoves = sgl?.topMoves?.map { it.label } ?: emptyList()
+        Log.i(TAG, "  (c) garchomp doubles moves=$dblMoves")
+        Log.i(TAG, "  (c) garchomp singles moves=$sglMoves")
+
+        // 판정.
+        assertTrue("싱글 샘플 최소 1종 인식(싱글 ROI)", singleOk >= 1)
+        assertTrue("더블 샘플 2밴드로 2종 인식", doublesMatched.size >= 2)
+        assertTrue("garchomp 주요기술이 형식별로 달라야(싱글 vs 더블 메타)", dblMoves != sglMoves && dblMoves.isNotEmpty() && sglMoves.isNotEmpty())
+        Log.i(TAG, "===== P20 실측 완료: single=$singleOk doubles=${doublesMatched.size} 사용률차이=${dblMoves != sglMoves} =====")
+    }
+
     private suspend fun runPass(preprocess: Preprocess, label: String) {
         val repo: PokedexRepository = AssetsPokedexLoader.load(ctx)
         val cropper = RoiCropper() // 기본 2x 업스케일

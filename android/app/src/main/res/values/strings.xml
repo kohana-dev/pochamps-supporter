@@ -44,6 +44,12 @@
     <string name="settings_scale_title">오버레이 카드 크기</string>
     <string name="settings_scale_desc">게임 위 정보 카드의 크기입니다. 실기기에서 너무 크거나 작으면 조정하세요. 바꾸면 바로 적용됩니다.</string>
 
+    <!-- ===== 배틀 형식 싱글/더블(P20) ===== -->
+    <string name="settings_format_title">배틀 형식</string>
+    <string name="settings_format_desc">싱글/더블에 따라 인식 영역(싱글 1개 / 더블 2개)과 기술 사용률(싱글 vs 더블 메타)이 함께 바뀝니다. 오버레이의 빠른 토글로 대전마다 바로 바꿀 수 있습니다.</string>
+    <string name="format_single">싱글</string>
+    <string name="format_doubles">더블</string>
+
     <!-- ===== 진단 모드(P14 필드테스트 지원) ===== -->
     <string name="settings_diag_title">진단 모드</string>
     <string name="settings_diag_desc">인식이 안 될 때 원인을 바로 보여줍니다. 오버레이에 마지막 OCR 원문·매칭 결과·인식 시각·OCR 빈도를 표시합니다. 다음 실행부터 적용됩니다.</string>

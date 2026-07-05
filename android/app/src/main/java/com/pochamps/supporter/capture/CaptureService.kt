@@ -73,6 +73,13 @@ class CaptureService : Service() {
     private var captureLang: String = AppSettings.DEFAULT_LANG
 
     /**
+     * 현재 배틀 형식(P20, 싱글/더블). onStartCommand 진입 시 설정에서 로드하고, 오버레이 빠른 토글로
+     * 즉시 바뀐다. @Volatile — 파이프라인 워커 스레드가 formatProvider/roiConfigProvider 로 읽는다.
+     * ROI(밴드 수)와 사용률(싱글 vs 더블 메타)이 이 값을 따라간다.
+     */
+    @Volatile private var captureFormat: BattleFormat = BattleFormat.DOUBLES
+
+    /**
      * 프로젝션이 죽을 때(화면 잠금/사용자 중단) 호출. (Android 15 QPR1+/16 규정)
      *
      * 즉시 stopSelf 하는 대신, 파이프라인/세션만 정리하고 오버레이에는
@@ -124,8 +131,9 @@ class CaptureService : Service() {
         }
         val isDemo = intent?.action == ACTION_DEMO
 
-        // 설정에서 언어 로드(오버레이/파이프라인 조립 전에 확정).
+        // 설정에서 언어/형식 로드(오버레이/파이프라인 조립 전에 확정).
         captureLang = AppSettings(this).language
+        captureFormat = AppSettings(this).battleFormat
 
         // 1) 오버레이를 **먼저** 띄운다(Android 15 순서 규정).
         ensureOverlayShown()
@@ -182,6 +190,9 @@ class CaptureService : Service() {
             onExit = { exitAll() },
             // 카드 스케일(P16) 설정값으로 초기 렌더.
             initialScale = AppSettings(this).overlayScale,
+            // 배틀 형식 빠른 토글(P20). 탭 → ROI/사용률/슬롯 전환.
+            initialFormat = captureFormat,
+            onSelectFormat = { fmt -> onFormatToggled(fmt) },
         )
         renderer.show()
         // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
@@ -192,6 +203,45 @@ class CaptureService : Service() {
     /** 앱/오버레이/캡처 완전 종료(P16). 알림 종료·카드 종료·MainActivity 중지 공통 경로. */
     private fun exitAll() {
         stopSelf()
+    }
+
+    /**
+     * 배틀 형식 토글 처리(P20). 오버레이 빠른 토글/설정에서 형식을 바꾸면:
+     *  1) 설정 영속 + captureFormat 갱신(파이프라인이 다음 프레임부터 형식별 ROI/사용률 사용).
+     *  2) 오버레이 세그먼트 하이라이트 갱신.
+     *  3) 슬롯 수 정리: 더블(2)→싱글(1) 전환 시 두 번째 슬롯 카드 제거(유령 카드 방지).
+     *  4) 파이프라인 판정 상태 리셋(Decider/FrameGate) — 이전 형식 슬롯 고착/선택기억 방지.
+     * 다음 프레임부터 새 형식 ROI(밴드 수)/사용률로 재인식된다.
+     *
+     * ⚠️ 향후 확장 지점: 자동 형식 감지(장면·슬롯 수 추론)를 넣는다면 이 경로를 그대로 재사용해
+     *    감지 결과로 [onFormatToggled] 를 호출하면 된다(현재는 수동 토글만, P20 스코프).
+     */
+    private fun onFormatToggled(format: BattleFormat) {
+        if (format == captureFormat) return
+        captureFormat = format
+        AppSettings(this).battleFormat = format
+        overlay?.setFormat(format)
+        // 형식별 유지할 최대 슬롯을 넘는 카드 제거(더블→싱글 시 슬롯1 정리). 더블은 0/1 유지 → no-op.
+        overlay?.pruneSlotsAbove(format.maxSlotIndex)
+        // 파이프라인 판정 상태 리셋(형식 전환 고착 방지). 데모/보정 세션이면 pipeline=null → no-op.
+        pipeline?.resetForFormatChange()
+        // 데모 세션(pipeline 없음)에서는 형식 사용률이 즉시 보이도록 현재 데모 카드를 재조립한다(UI 검증).
+        if (pipeline == null && repository != null) reissueDemoCard()
+    }
+
+    /** 데모 카드를 현재 형식으로 재표시(P20 형식 토글 시 사용률 즉시 반영). demoIndex 는 유지. */
+    private fun reissueDemoCard() {
+        val target = DEMO_CYCLE[(demoIndex - 1).coerceAtLeast(0) % DEMO_CYCLE.size]
+        val repo = repository ?: return
+        val card = OverlayCardData.fromRepository(repo, target.key, captureLang, captureFormat) ?: return
+        overlay?.updateSlot(
+            0, card,
+            SlotUiMeta(
+                root = target.root,
+                hasMoreCandidates = target.root != null && candidatesForRoot(target.root).size > 1,
+                pinned = false,
+            ),
+        )
     }
 
     /** 후보 선택 시트용: root 의 후보를 타입칩+사용률과 함께. 사용률 최상위=추천. */
@@ -242,9 +292,13 @@ class CaptureService : Service() {
                 repo = repo,
                 key = target.key,
                 lang = captureLang,
-                format = BattleFormat.DOUBLES,
+                format = captureFormat,
             ) ?: return@thread
             mainHandler.post {
+                // 데모도 형식 빠른 토글을 노출한다(UI 검증용, P20). 실캡처가 아니어도 토글 자체는 동작
+                // (설정 저장 + 카드 사용률 재조립). 데모는 슬롯0 단일이므로 싱글/더블 전환 시 카드 재표시.
+                overlay?.setCaptureActive(true)
+                overlay?.setFormat(captureFormat)
                 // 후보가 있는 데모면 root/hasMoreCandidates 메타를 실어 "바꾸기" 진입점을 노출.
                 overlay?.updateSlot(
                     0, card,
@@ -265,11 +319,13 @@ class CaptureService : Service() {
      */
     private fun showCalibrationOverlay() {
         if (calibrationOverlay != null) return
+        // ROI 보정은 **현재 형식**의 오버라이드를 편집/리셋한다(P20 — 형식별 분리).
         val store = PrefsRoiConfigStore(this)
+        val format = AppSettings(this).battleFormat
         val calib = RoiCalibrationOverlay(
             context = this,
-            initial = store.effective(),
-            onSave = { cfg -> store.save(cfg) },
+            initial = store.effective(format),
+            onSave = { cfg -> store.save(format, cfg) },
             onClose = {
                 calibrationOverlay?.dismiss()
                 calibrationOverlay = null
@@ -338,9 +394,11 @@ class CaptureService : Service() {
                 scope = pipelineScope,
                 repository = repo,
                 ocr = ocr,
-                roiConfigProvider = { roiStore.effective() },
+                // ROI/사용률 모두 현재 형식을 따른다(P20). 프레임/갱신마다 최신 captureFormat 을 읽어
+                // 오버레이 빠른 토글이 다음 프레임부터 즉시 반영된다(파이프라인 재구성 불필요).
+                roiConfigProvider = { roiStore.effective(captureFormat) },
                 lang = captureLang,
-                format = BattleFormat.DOUBLES,
+                formatProvider = { captureFormat },
                 onCardUpdate = { slot, card, meta ->
                     // 인식 성공 시각 기록(미인식 안내 배너 판정용).
                     lastRecognitionAt = android.os.SystemClock.uptimeMillis()
@@ -379,6 +437,9 @@ class CaptureService : Service() {
             manager.start(vd) { bitmap, ts -> pipe.submitFrame(bitmap, ts) }
             pipelineStartedAt = android.os.SystemClock.uptimeMillis()
             mainHandler.post {
+                // 실캡처 세션 활성 → 형식 빠른 토글 노출(카드 전에도, P20).
+                overlay?.setCaptureActive(true)
+                overlay?.setFormat(captureFormat)
                 scheduleBattleNamesWatchdog()
                 scheduleHealthWatchdog()
             }
@@ -538,6 +599,7 @@ class CaptureService : Service() {
             runCatching { it.stop() }
         }
         projection = null
+        overlay?.setCaptureActive(false) // 형식 빠른 토글 숨김(중단 카드 우선, P20).
         overlay?.showCaptureStopped()
     }
 

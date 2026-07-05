@@ -281,6 +281,9 @@ private fun SettingsSection() {
             }
 
             Spacer(Modifier.height(16.dp))
+            BattleFormatSelector()
+
+            Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.settings_roi_title), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -309,7 +312,8 @@ private fun SettingsSection() {
             }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = {
-                PrefsRoiConfigStore(context).clear()
+                // 현재 형식의 ROI 오버라이드만 리셋(P20 — 형식별 분리). 다른 형식 보정은 보존.
+                PrefsRoiConfigStore(context).clear(settings.battleFormat)
                 roiResetDone = true
             }) {
                 Text(
@@ -362,6 +366,42 @@ private fun OverlayScaleSelector() {
                 label = { Text(com.pochamps.supporter.overlay.OverlayScale.label(step)) },
             )
         }
+    }
+}
+
+/**
+ * 배틀 형식 선택(P20, 싱글/더블). 오버레이 빠른 토글과 같은 설정을 공유한다.
+ * 형식을 바꾸면 인식 영역(싱글 1밴드 / 더블 2밴드)과 기술 사용률(싱글 vs 더블 메타)이 함께 바뀐다.
+ * 다음 실행 세션부터 반영(실행 중 변경은 오버레이 빠른 토글이 즉시 반영).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun BattleFormatSelector() {
+    val context = LocalContext.current
+    val settings = remember { AppSettings(context) }
+    var format by remember { mutableStateOf(settings.battleFormat) }
+
+    Text(stringResource(R.string.settings_format_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(R.string.settings_format_desc), style = MaterialTheme.typography.bodySmall)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = format == com.pochamps.supporter.data.BattleFormat.SINGLES,
+            onClick = {
+                settings.battleFormat = com.pochamps.supporter.data.BattleFormat.SINGLES
+                format = com.pochamps.supporter.data.BattleFormat.SINGLES
+            },
+            label = { Text(stringResource(R.string.format_single)) },
+        )
+        FilterChip(
+            selected = format == com.pochamps.supporter.data.BattleFormat.DOUBLES,
+            onClick = {
+                settings.battleFormat = com.pochamps.supporter.data.BattleFormat.DOUBLES
+                format = com.pochamps.supporter.data.BattleFormat.DOUBLES
+            },
+            label = { Text(stringResource(R.string.format_doubles)) },
+        )
     }
 }
 

@@ -34,6 +34,15 @@ data class UsageEntry(
 enum class BattleFormat(val slug: String) {
     DOUBLES("doubles"),
     SINGLES("singles");
+
+    /** 이 형식의 상대 슬롯(카드) 수(P20): 싱글 1 / 더블 2. ROI 밴드 수와 일치. */
+    val slotCount: Int get() = if (this == SINGLES) 1 else 2
+
+    /**
+     * 이 형식에서 **유지할** 최대 슬롯 인덱스(P20). 싱글=0(슬롯0만), 더블=1(슬롯0/1).
+     * 형식 전환 시 이 인덱스를 넘는 슬롯 카드는 제거한다(더블→싱글 시 슬롯1 정리).
+     */
+    val maxSlotIndex: Int get() = slotCount - 1
 }
 
 /** 한 포맷의 사용률 집합. 각 항목은 %(pct) 내림차순으로 정렬돼 있다(원본 기준). */

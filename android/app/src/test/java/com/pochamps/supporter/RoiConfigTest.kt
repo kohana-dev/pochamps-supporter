@@ -3,7 +3,9 @@ package com.pochamps.supporter
 import com.pochamps.supporter.capture.RoiConfig
 import com.pochamps.supporter.capture.RoiConfigStore
 import com.pochamps.supporter.capture.RoiRect
+import com.pochamps.supporter.data.BattleFormat
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -118,10 +120,68 @@ class RoiConfigTest {
         assertEquals(RoiConfig.default(), store.effective())
     }
 
+    // ===== P20: 형식별 ROI 선택 / 오버라이드 분리 =====
+
+    @Test
+    fun activeDefault_형식별_밴드수() {
+        // 싱글 → 1밴드, 더블 → 2밴드.
+        assertEquals(1, RoiConfig.activeDefault(BattleFormat.SINGLES).rois.size)
+        assertEquals(2, RoiConfig.activeDefault(BattleFormat.DOUBLES).rois.size)
+        // 싱글/더블 기본값은 서로 다르다(같은 오버라이드 공유 금지의 근거).
+        assertNotEquals(
+            RoiConfig.activeDefault(BattleFormat.SINGLES),
+            RoiConfig.activeDefault(BattleFormat.DOUBLES),
+        )
+    }
+
+    @Test
+    fun effective_형식별_오버라이드없으면_형식기본() {
+        val store = InMemoryRoiStore()
+        assertEquals(RoiConfig.DEFAULT_LANDSCAPE_SINGLE, store.effective(BattleFormat.SINGLES))
+        assertEquals(RoiConfig.DEFAULT_LANDSCAPE_DOUBLES, store.effective(BattleFormat.DOUBLES))
+    }
+
+    @Test
+    fun effective_형식별_오버라이드_독립() {
+        // 싱글 오버라이드를 저장해도 더블은 더블 기본을 반환(공유 안 함).
+        val store = InMemoryRoiStore()
+        val single = RoiConfig(listOf(RoiRect(0.6, 0.05, 0.9, 0.25)))
+        store.save(BattleFormat.SINGLES, single)
+
+        assertEquals(single, store.effective(BattleFormat.SINGLES))
+        assertEquals(RoiConfig.DEFAULT_LANDSCAPE_DOUBLES, store.effective(BattleFormat.DOUBLES))
+
+        // 더블 오버라이드를 따로 저장 → 각자 유지.
+        val doubles = RoiConfig(
+            listOf(RoiRect(0.55, 0.05, 0.75, 0.25), RoiRect(0.78, 0.05, 1.0, 0.25)),
+        )
+        store.save(BattleFormat.DOUBLES, doubles)
+        assertEquals(single, store.effective(BattleFormat.SINGLES))
+        assertEquals(doubles, store.effective(BattleFormat.DOUBLES))
+
+        // 싱글만 리셋 → 싱글은 기본, 더블 오버라이드는 보존.
+        store.clear(BattleFormat.SINGLES)
+        assertEquals(RoiConfig.DEFAULT_LANDSCAPE_SINGLE, store.effective(BattleFormat.SINGLES))
+        assertEquals(doubles, store.effective(BattleFormat.DOUBLES))
+    }
+
+    @Test
+    fun 하위호환_무인자_effective는_더블() {
+        // 구 호출부(무인자)는 더블 형식에 위임한다.
+        val store = InMemoryRoiStore()
+        assertEquals(RoiConfig.DEFAULT_LANDSCAPE_DOUBLES, store.effective())
+        val doubles = RoiConfig(
+            listOf(RoiRect(0.55, 0.05, 0.75, 0.25), RoiRect(0.78, 0.05, 1.0, 0.25)),
+        )
+        store.save(doubles) // 무인자 → 더블에 저장.
+        assertEquals(doubles, store.effective(BattleFormat.DOUBLES))
+        assertEquals(doubles, store.effective())
+    }
+
     private class InMemoryRoiStore : RoiConfigStore {
-        private var cfg: RoiConfig? = null
-        override fun load(): RoiConfig? = cfg
-        override fun save(config: RoiConfig) { cfg = config }
-        override fun clear() { cfg = null }
+        private val byFormat = HashMap<BattleFormat, RoiConfig>()
+        override fun load(format: BattleFormat): RoiConfig? = byFormat[format]
+        override fun save(format: BattleFormat, config: RoiConfig) { byFormat[format] = config }
+        override fun clear(format: BattleFormat) { byFormat.remove(format) }
     }
 }

@@ -2,6 +2,7 @@ package com.pochamps.supporter.data
 
 import android.content.Context
 import com.pochamps.supporter.overlay.OverlayScale
+// BattleFormat 은 같은 data 패키지 — import 불필요(동일 패키지).
 
 /**
  * 앱 설정(게임 언어 등) 영속 저장소.
@@ -39,12 +40,28 @@ class AppSettings(context: Context) {
         get() = OverlayScale.snap(prefs.getFloat(KEY_SCALE, OverlayScale.DEFAULT))
         set(value) { prefs.edit().putFloat(KEY_SCALE, OverlayScale.snap(value)).apply() }
 
+    /**
+     * 배틀 형식(싱글/더블, P20). ROI 밴드 수(싱글 1 / 더블 2)와 사용률 메타(싱글 vs 더블)를 함께 좌우한다.
+     * 기본 [BattleFormat.DOUBLES](포챔스는 더블 중심). 저장은 slug 문자열("singles"/"doubles"),
+     * 오래된/깨진 값은 기본값으로 안전 폴백.
+     *
+     * 오버레이 빠른 토글/설정 선택이 이 값을 바꾸면, 파이프라인이 다음 프레임부터 형식별 ROI/사용률을 쓴다.
+     * (자동 형식 감지는 향후 확장 지점 — 지금은 수동 토글만.)
+     */
+    var battleFormat: BattleFormat
+        get() = when (prefs.getString(KEY_FORMAT, null)) {
+            BattleFormat.SINGLES.slug -> BattleFormat.SINGLES
+            else -> BattleFormat.DOUBLES
+        }
+        set(value) { prefs.edit().putString(KEY_FORMAT, value.slug).apply() }
+
     companion object {
         const val DEFAULT_LANG = "ko"
         private const val PREFS_NAME = "app_settings"
         private const val KEY_LANG = "capture_lang"
         private const val KEY_DIAG = "diagnostics_enabled"
         private const val KEY_SCALE = "overlay_scale"
+        private const val KEY_FORMAT = "battle_format"
 
         /** 언어 코드 → 사람이 읽는 이름(설정 UI). */
         val LANGUAGE_LABELS: Map<String, String> = mapOf(

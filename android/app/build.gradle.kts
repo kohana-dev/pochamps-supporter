@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.1.3" // 캡처 건강 모니터: FLAG_SECURE 검은화면 / 프레임미수신 자동 감지(P17)
+        versionCode = 6
+        versionName = "0.1.4" // 싱글/더블 형식 토글: ROI(밴드 수)+사용률 동시 전환, 형식별 ROI 오버라이드 분리(P20)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

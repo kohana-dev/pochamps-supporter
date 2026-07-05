@@ -1208,3 +1208,48 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 
 ### 남은 실기기 전용 항목(불변)
 - 실기기에서 실제 FLAG_SECURE 게임(포챔스 정식판)으로 BlackScreen 자동감지 최종 확인. P16 이하 잔여 항목 동일.
+
+## P20 — 싱글/더블 배틀 형식 토글 (ROI + 사용률 동시 전환, v0.1.4) ✅ 완료 (2026-07-05)
+
+> **실기기 리포트 대응**: 앱이 **항상 더블로 하드코딩**돼 있어 싱글 배틀이 사실상 작동 불가였다.
+> `CaptureService` 가 `format=DOUBLES` 고정(2곳), `RoiConfig.default()`=더블 2밴드만 사용.
+> → 싱글에서 (1)ROI 위치 어긋나 인식 실패, (2)사용률이 더블 메타로 오표시. **수동 토글로 형식(ROI+사용률)을 함께 전환**한다.
+
+### 기능 — 싱글/더블 토글
+1. **`AppSettings.battleFormat`**(SINGLES/DOUBLES, 기본 DOUBLES) 영속. slug 저장, 깨진 값 안전 폴백. (`BattleFormat` enum 재사용 — data 패키지.)
+2. **형식별 ROI 스왑**: `RoiConfig.activeDefault(format)` 추가 → 싱글=1밴드(`DEFAULT_LANDSCAPE_SINGLE`) / 더블=2밴드(`DEFAULT_LANDSCAPE_DOUBLES`). 파이프라인 `roiConfigProvider = { roiStore.effective(captureFormat) }` — 프레임마다 최신 형식의 ROI 를 읽어 토글 즉시 반영.
+3. **형식별 ROI 오버라이드 분리(P14 보정)**: 싱글/더블은 밴드 수가 달라 오버라이드 공유 시 깨짐 → `RoiConfigStore.effective(format)` + 저장 키 분리(`roi_override_single`/`roi_override_doubles`). 오버라이드 없으면 그 형식 기본값 반환. 구버전 단일 키(`roi_config`)는 더블로 1회 마이그레이션. 무인자 API 는 더블 위임(하위호환). ROI 보정 UI/리셋도 **현재 형식**의 것만 편집/리셋(다른 형식 보정 보존).
+4. **사용률 형식 추종**: `RecognitionPipeline.format` → `formatProvider: () -> BattleFormat`. 카드 조립(`OverlayCardData.fromRepository(format=…)`)이 매 갱신 시점 최신 형식을 읽어 "주요 기술" 사용률이 싱글 메타 vs 더블 메타로 바뀜.
+5. **UX — 빠른 토글**:
+   - **오버레이 상단 싱글/더블 세그먼트**(`OverlayCard.FormatToggle`) — 대전마다 즉시 전환. 세그먼트만 터치를 받고 그 밖은 게임으로 통과(창=카드/`FLAG_NOT_FOCUSABLE` 전략 보존). 실캡처 세션(`captureActive`)에서만 노출(데모도 UI 검증 위해 노출).
+   - **MainActivity 설정**에 배틀 형식 선택 칩(싱글/더블) 추가.
+   - **토글 즉시 반영**: `CaptureService.onFormatToggled` → 설정 저장 + `overlay.setFormat` + 슬롯 정리(`pruneSlotsAbove(format.maxSlotIndex)` — 더블→싱글 시 슬롯1 카드 제거) + `pipeline.resetForFormatChange()`(Decider/FrameGate 리셋으로 형식 전환 고착·핀 누수 방지). 다음 프레임부터 새 ROI/사용률.
+   - ko/en 문구(형식 선택/토글) 4종.
+6. **자동 감지는 이번 스코프 아님**(수동 토글만). 향후 자동 감지 확장 지점 주석을 `onFormatToggled`/`FormatToggle` 에 남김.
+
+### 테스트 (+9, 순수 JVM → 193)
+- `RoiConfigTest`(+4): `activeDefault` 형식별 밴드 수, `effective(format)` 형식별 기본/오버라이드 **독립**(싱글 저장이 더블에 누수 안 됨, 형식별 리셋), 무인자 하위호환(더블 위임).
+- `BattleFormatTest`(신규, +5): 형식별 슬롯 수/유지 최대 슬롯 인덱스, 형식별 활성 ROI 밴드 수, slug, 더블→싱글 슬롯1 제거 대상 계산, 형식 전환 Decider 리셋(핀 해제 후 정상 갱신).
+
+### 에뮬레이터 E2E (실측 — AVD `Kohana_QA_API_35`)
+- **인스트루먼트 테스트** `OcrFieldTest.p20_singles_doubles_형식전환_실측` (실 ML Kit OCR):
+  - (a) **싱글 활성 ROI(1밴드)** → `en_single_hippowdon.jpg`=hippowdon OK, `ko_single_gyarados.jpg`=가라도스→gyarados OK.
+  - (b) **더블 활성 ROI(2밴드)** → `en_doubles_typhlosion_charizard.jpg`=typhlosion+charizard 2종 인식.
+  - (c) **사용률 형식 차이(garchomp)**: doubles=[Dragon Claw, Rock Slide, Earthquake, Protect] vs singles=[Earthquake, Outrage, Stealth Rock, Rock Tomb] — 다름 확인.
+- **오버레이 실측 스크린샷**(`field_samples/p20/`): 설정 형식 선택(`a_settings_format_selector.png`), 데모 오버레이 **더블 토글** 시 한카리아스 기술=[드래곤클로 89 / 스톤샤워 84 / 지진 78 / 방어 73](`b_overlay_doubles_moves.png`), **싱글 토글** 시 같은 포켓몬 기술=[지진 99 / 역린 49 / 스텔스록 47 / 암석봉인 36](`c_overlay_singles_moves.png`). **같은 포켓몬·같은 토글, 사용률만 형식 따라 전환**됨을 시각 입증.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 193/193, failures 0**(P17 184 + P20 9).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 6 / versionName 0.1.4**.
+- `:app:connectedDebugAndroidTest`(P20 E2E) → 통과.
+
+### 코드 변경 요약
+- `data/AppSettings.kt`(`battleFormat` 영속), `data/Usage.kt`(`BattleFormat.slotCount`/`maxSlotIndex`).
+- `capture/RoiConfig.kt`(`activeDefault(format)` + `RoiConfigStore` 형식별 effective/save/clear + 하위호환 위임), `capture/PrefsRoiConfigStore.kt`(형식별 키 분리 + 구키 마이그레이션), `capture/RecognitionPipeline.kt`(`formatProvider`·`resetForFormatChange`), `capture/CaptureService.kt`(`captureFormat`·`onFormatToggled`·형식별 ROI/사용률 provider·보정 형식 스코프·데모 형식 반영·재발행).
+- `overlay/OverlayRenderer.kt`(형식 토글 상태·`setFormat`·`setCaptureActive`·`pruneSlotsAbove`·`FormatToggle` 렌더), `overlay/OverlayCard.kt`(`FormatToggle` 컴포저블).
+- `ui/MainActivity.kt`(배틀 형식 선택 칩·ROI 리셋 형식 스코프).
+- strings(ko/en): 형식 선택/토글 4종.
+- build.gradle.kts: versionCode 6 / 0.1.4.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 실 대전에서 싱글/더블 토글 최종 확인(특히 싱글 이름표 위치·더블 2밴드 정합). 자동 형식 감지는 향후(P20 스코프 밖). P17 이하 잔여 항목 동일.
