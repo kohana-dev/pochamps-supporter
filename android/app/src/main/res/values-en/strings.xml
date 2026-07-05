@@ -113,7 +113,9 @@
     <!-- P21: always-on control bar -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">Minimize</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">Aim</string>
     <string name="overlay_calibrate_desc">Align recognition box</string>

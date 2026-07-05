@@ -130,6 +130,14 @@ class CaptureHealth(
         const val DEFAULT_BLACK_LUMA_THRESHOLD = 18
 
         /**
+         * [P24] 이 건강 상태에 대해 **안내 카드를 표시해야 하는가**(순수 판정).
+         * HEALTHY(정상)면 false → 인식 성공 평상시 화면에는 아무 안내도 뜨지 않는다(카드만).
+         * 문제(BLACK_SCREEN/NO_FRAMES)일 때만 true → 안내 카드 표시.
+         * OverlayRenderer.updateCaptureHealth 가 이 판정으로 카드 노출/해제를 결정한다.
+         */
+        fun shouldShowCard(health: Health): Boolean = health != Health.HEALTHY
+
+        /**
          * 다운샘플 그레이 서명(FrameGate.downsampleGray 산출물, 각 셀 0..255)의 평균 휘도.
          * 빈 배열이면 0(=어두움)으로 본다. 프레임 전체 대표 밝기로 사용.
          */

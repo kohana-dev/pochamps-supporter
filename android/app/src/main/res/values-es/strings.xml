@@ -86,7 +86,9 @@
     <!-- P21: barra de control siempre visible -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">Minimizar</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">Ajustar</string>
     <string name="overlay_calibrate_desc">Alinear el recuadro</string>

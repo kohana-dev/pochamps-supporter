@@ -468,28 +468,53 @@ private fun ControlDivider() {
 }
 
 /**
- * [P21] 최소화 핸들. 오버레이를 거의 안 가리는 작은 드래그 가능한 버튼(점/아이콘 하나).
- * 탭하면 복원(펼침), 드래그로 이동(위치는 컨트롤 바/카드와 공유 저장). 화면 모서리에 붙일 수 있다.
- * 창=카드 전략 보존: 이 작은 원만 터치를 받고 나머지는 게임으로 통과한다.
+ * [P24] 상호작용 토글 핸들. **메인 창과 별도의 아주 작은 상시 touchable 창**에 렌더된다.
+ *
+ * 메인 정보/컨트롤 창은 기본 `FLAG_NOT_TOUCHABLE` 라 평소 모든 터치가 게임으로 통과한다.
+ * 이 핸들만 유일하게 상시 터치를 받아, 탭하면 메인 창을 잠시 상호작용 모드로 전환한다
+ * (카드 펼치기/검색/보정/후보 선택 등). 다시 탭하거나 무조작 N초면 통과 모드로 자동 복귀.
+ *
+ *  - 🔒(통과중): 게임 터치 100% 통과 — 카드는 순수 표시.
+ *  - ✋(조작중): 메인 창 터치 활성 — 카드/컨트롤 조작 가능.
+ *
+ * 드래그로 위치 이동(구석에 붙일 수 있음, 위치 저장). 게임을 거의 안 가리는 크기.
  */
 @Composable
-fun MinimizedHandle(
+fun InteractionHandle(
+    interactive: Boolean,
+    minimized: Boolean,
     dragModifier: Modifier,
-    onRestore: () -> Unit,
+    onToggle: () -> Unit,
+    /** 길게 누르기 → 카드/컨트롤 전체 최소화 ↔ 복원(P21 통합). */
+    onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 조작중이면 눈에 띄는 강조색, 통과중이면 차분한 톤(현재 상태를 색으로도 구분).
+    val bg = if (interactive) AccentColor.copy(alpha = 0.92f) else ControlBarBg
+    val fg = if (interactive) Color.White else AccentColor
+    // 최소화 상태면 눈(👁) 글리프로 "복원 가능"을 알린다. 아니면 통과🔒/조작✋ 상태.
+    val glyphRes = when {
+        minimized -> R.string.overlay_handle_minimized
+        interactive -> R.string.overlay_handle_interacting
+        else -> R.string.overlay_handle_passthrough
+    }
     Box(
         modifier = modifier
             .then(dragModifier)
-            .background(ControlBarBg, RoundedCornerShape(24.dp.scaled()))
-            .clickable(onClick = onRestore)
-            .padding(horizontal = 10.dp.scaled(), vertical = 8.dp.scaled()),
+            .background(bg, RoundedCornerShape(24.dp.scaled()))
+            .pointerInput(interactive, minimized) {
+                detectTapGestures(
+                    onTap = { onToggle() },
+                    onLongPress = { onLongPress() },
+                )
+            }
+            .padding(horizontal = 12.dp.scaled(), vertical = 10.dp.scaled()),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            stringResource(R.string.overlay_handle_dot),
-            color = AccentColor,
-            fontSize = 16.sp.scaled(),
+            stringResource(glyphRes),
+            color = fg,
+            fontSize = 18.sp.scaled(),
             fontWeight = FontWeight.Bold,
         )
     }

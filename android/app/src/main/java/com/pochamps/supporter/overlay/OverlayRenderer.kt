@@ -54,6 +54,15 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 class OverlayRenderer(
     private val context: Context,
     private val positionStore: OverlayPositionStore,
+    /**
+     * [P24] 상호작용 토글 핸들 창의 위치 저장소(메인 창과 별도로 저장 → 각자 위치 유지).
+     * 서비스가 `PrefsOverlayPositionStore(ctx, "handle_")` 를 주입. 기본은 인메모리(테스트/데모).
+     */
+    private val handlePositionStore: OverlayPositionStore = object : OverlayPositionStore {
+        private var p: OverlayPosition? = null
+        override fun load() = p
+        override fun save(position: OverlayPosition) { p = position }
+    },
     /** 후보 선택 확정 콜백. */
     private val onChooseCandidate: (slot: Int, root: String, key: String) -> Unit = { _, _, _ -> },
     /** 수동 검색 결과를 슬롯에 고정. */
@@ -125,6 +134,23 @@ class OverlayRenderer(
     private var composeView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var added = false
+
+    /**
+     * [P24] 상호작용 토글 핸들 창(별도 창). 메인 창이 기본 `FLAG_NOT_TOUCHABLE`(통과)라
+     * 유일하게 상시 터치를 받는 아주 작은 창. 탭하면 상호작용 모드를 토글한다.
+     */
+    private var handleView: ComposeView? = null
+    private var handleParams: WindowManager.LayoutParams? = null
+    private var handleAdded = false
+
+    /**
+     * [P24] 터치 모드 상태 기계(순수 로직 [InteractionMode]).
+     *  - interactive=false(기본): 메인 창 `FLAG_NOT_TOUCHABLE` → 모든 터치 게임 통과.
+     *  - interactive=true: 핸들 탭으로 진입. 메인 창 touchable → 카드/시트 조작 가능.
+     *    [InteractionMode.timeoutMs] 무조작이면 자동 통과 복귀.
+     * Compose 가 관찰하도록 mutableState 로 감싼다(핸들 잠금 아이콘/타이머 반영).
+     */
+    private val interactionMode = mutableStateOf(InteractionMode())
 
     /** ROI 슬롯별 카드 데이터(더블배틀 대응 — 최대 2장). */
     private val cardsBySlot = mutableStateMapOf<Int, OverlayCardData>()
@@ -299,7 +325,80 @@ class OverlayRenderer(
         composeView = view
         windowManager.addView(view, lp)
         added = true
+        showHandle()
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+    }
+
+    /**
+     * [P24] 상호작용 토글 핸들 창을 띄운다(메인 창과 별도). 아주 작은 상시 touchable 창이라
+     * 이 창만 게임 터치를 가져가고, 메인 창은 기본 통과다. 위치는 [handlePositionStore] 에 저장.
+     */
+    private fun showHandle() {
+        if (handleAdded) return
+        val lp = buildHandleParams()
+        handleParams = lp
+        val view = ComposeView(context).apply {
+            setViewTreeLifecycleOwner(this@OverlayRenderer)
+            setViewTreeSavedStateRegistryOwner(this@OverlayRenderer)
+            setContent { HandleRoot() }
+        }
+        handleView = view
+        windowManager.addView(view, lp)
+        handleAdded = true
+    }
+
+    private fun buildHandleParams(): WindowManager.LayoutParams {
+        val type =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            // 핸들은 상시 touchable(FLAG_NOT_TOUCHABLE 없음). 키 포커스는 안 뺏게 NOT_FOCUSABLE 유지.
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            val saved = handlePositionStore.load() ?: defaultHandlePosition()
+            x = saved.x
+            y = saved.y
+        }
+    }
+
+    /** 핸들 기본 위치: 화면 우측 하단 근처(게임 조작을 가장 덜 가리는 구석). */
+    private fun defaultHandlePosition(): OverlayPosition {
+        val m = context.resources.displayMetrics
+        val size = (56 * m.density).toInt()
+        return OverlayPosition(
+            x = (m.widthPixels - size - (12 * m.density)).toInt(),
+            y = (m.heightPixels - size - (120 * m.density)).toInt(),
+        )
+    }
+
+    private fun onHandleDrag(dx: Float, dy: Float) {
+        val lp = handleParams ?: return
+        val view = handleView ?: return
+        val m = context.resources.displayMetrics
+        val newPos = OverlayPosition(lp.x + dx.toInt(), lp.y + dy.toInt())
+            .clampedTo(
+                screenWidth = m.widthPixels,
+                screenHeight = m.heightPixels,
+                cardWidth = view.width.takeIf { it > 0 } ?: (56 * m.density).toInt(),
+                cardHeight = view.height.takeIf { it > 0 } ?: (56 * m.density).toInt(),
+            )
+        lp.x = newPos.x
+        lp.y = newPos.y
+        windowManager.updateViewLayout(view, lp)
+    }
+
+    private fun persistHandlePosition() {
+        val lp = handleParams ?: return
+        handlePositionStore.save(OverlayPosition(lp.x, lp.y))
     }
 
     /** 단일 카드 갱신(데모/싱글 경로 하위호환). 슬롯 0. */
@@ -410,12 +509,13 @@ class OverlayRenderer(
      * 캡처 중단(showCaptureStopped) 상태에서는 그 카드가 우선이므로 건강 안내를 덮지 않는다.
      */
     fun updateCaptureHealth(h: com.pochamps.supporter.capture.CaptureHealth.Health) {
+        // P24: 정상(HEALTHY)이면 안내 카드 없음(null) — 인식 성공 평상시엔 카드만 보인다.
         captureHealth.value =
-            if (h == com.pochamps.supporter.capture.CaptureHealth.Health.HEALTHY) null else h
+            if (com.pochamps.supporter.capture.CaptureHealth.shouldShowCard(h)) h else null
     }
 
     fun destroy() {
-        if (!added) {
+        if (!added && !handleAdded) {
             lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
             return
         }
@@ -424,6 +524,11 @@ class OverlayRenderer(
         composeView = null
         layoutParams = null
         added = false
+        // P24: 핸들 창도 함께 제거.
+        handleView?.let { runCatching { windowManager.removeView(it) } }
+        handleView = null
+        handleParams = null
+        handleAdded = false
     }
 
     // --- 내부 ---
@@ -440,7 +545,8 @@ class OverlayRenderer(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            baseFlags(focusable = false),
+            // P24: 기본 통과(NOT_TOUCHABLE) — 상호작용 모드가 아니면 카드/컨트롤도 터치를 안 받는다.
+            baseFlags(focusable = false, touchable = interactionMode.value.interactive),
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -451,13 +557,24 @@ class OverlayRenderer(
     }
 
     /**
-     * 창 플래그 조립. 기본은 `FLAG_NOT_FOCUSABLE`(게임 키 포커스 보존).
-     * [focusable] 이 true 면 그 플래그를 빼서 창이 IME/키 포커스를 잡을 수 있게 한다(검색 입력용).
-     * `FLAG_LAYOUT_NO_LIMITS` 는 소형 창 전략(창=카드)에서 화면 밖 배치 허용 위해 항상 유지.
+     * 메인 창 플래그 조립.
+     *  - `FLAG_LAYOUT_NO_LIMITS`: 소형 창 전략(창=카드)에서 화면 밖 배치 허용 위해 항상 유지.
+     *  - `FLAG_NOT_FOCUSABLE`: 기본(게임 키 포커스 보존). [focusable] true 면 제거(검색 IME 입력용).
+     *  - `FLAG_NOT_TOUCHABLE`(P24 근본 수정): [touchable] false(기본)면 추가 →
+     *    **보이는 카드/컨트롤 영역 전체가 게임 터치를 통과시킨다**(게임 100% 조작 가능).
+     *    상호작용 모드([interactionMode].interactive)일 때만 이 플래그를 빼서 조작을 허용한다.
+     *
+     * ## 2창 모델 선택 근거(설계 대안 대비)
+     * "컨트롤 바만 별도 touchable 소형 창" 대안은 카드 상호작용(탭 순환·메가·후보 선택·검색 시트·
+     * 종료 그립)을 전부 컨트롤 바 버튼으로 옮겨야 해 기존 카드 UX/코드(P4·P16·P18·P20·P23)를
+     * 대규모로 재작성해야 한다. 반면 2창 모델은 메인 창의 플래그 하나만 토글하므로
+     * 기존 카드 컴포저블/콜백을 **그대로 보존**하면서 "평소 게임 터치 100% 통과"를 달성한다.
+     * 유일한 상시 터치 영역은 아주 작은 핸들 창뿐 → 게임을 거의 안 가린다.
      */
-    private fun baseFlags(focusable: Boolean): Int {
+    private fun baseFlags(focusable: Boolean, touchable: Boolean): Int {
         var flags = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         if (!focusable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        if (!touchable) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         return flags
     }
 
@@ -585,16 +702,51 @@ class OverlayRenderer(
      */
     private fun setFocusable(wantFocus: Boolean) {
         if (focusable == wantFocus) return
+        focusable = wantFocus
+        applyMainFlags()
+    }
+
+    /**
+     * [P24] 메인 창 플래그를 현재 [focusable]/[interactionMode] 상태로 재계산해 반영한다.
+     * 검색 시트가 열리면(focusable) 자동으로 touchable 로 취급해 IME/필드 탭이 되게 한다.
+     */
+    private fun applyMainFlags() {
         val lp = layoutParams ?: return
         val view = composeView ?: return
-        focusable = wantFocus
-        lp.flags = baseFlags(focusable = wantFocus)
+        // 검색 입력 중(focusable)이면 반드시 터치도 받아야 하므로 touchable 강제.
+        val touchable = interactionMode.value.interactive || focusable
+        lp.flags = baseFlags(focusable = focusable, touchable = touchable)
         runCatching { windowManager.updateViewLayout(view, lp) }
+    }
+
+    /**
+     * [P24] 상호작용 모드 전이 반영(핸들 탭/자동 복귀/유저 조작 후).
+     * 상태 기계 [InteractionMode] 결과를 저장하고, 변화가 있으면 메인 창 플래그를 즉시 갱신한다.
+     */
+    private fun setInteraction(next: InteractionMode) {
+        val prev = interactionMode.value
+        interactionMode.value = next
+        if (prev.interactive != next.interactive) applyMainFlags()
+    }
+
+    /** 핸들 탭 → 통과 ↔ 상호작용 토글. */
+    private fun toggleInteraction() {
+        setInteraction(interactionMode.value.toggle(now()))
+    }
+
+    /**
+     * 상호작용 모드 중 카드/시트 조작 시 자동 복귀 타이머 리셋(무조작 시간 재기).
+     * 통과 모드면 no-op(상호작용 아닐 때 이 창은 터치를 안 받으므로 호출도 안 됨).
+     */
+    private fun touchInteraction() {
+        val next = interactionMode.value.touched(now())
+        if (next !== interactionMode.value) interactionMode.value = next
     }
 
     // --- 단계 전환 로직(탭 순환: 칩→카드→확장→칩) ---
 
     private fun cycleStage(slot: Int) {
+        touchInteraction() // P24: 조작 → 상호작용 모드 자동 복귀 타이머 리셋.
         val next = when (stageBySlot[slot] ?: CardStage.CHIP) {
             CardStage.CHIP -> CardStage.CARD
             CardStage.CARD -> CardStage.EXPANDED
@@ -607,6 +759,7 @@ class OverlayRenderer(
 
     /** 확장 패널에서 유저가 조작할 때 자동 축소 타이머를 리셋(무조작 시간 재기). */
     private fun touchExpanded(slot: Int) {
+        touchInteraction() // P24: 상호작용 모드 자동 복귀 타이머도 함께 리셋.
         if (stageBySlot[slot] == CardStage.EXPANDED) expandedAtBySlot[slot] = now()
     }
 
@@ -648,29 +801,10 @@ class OverlayRenderer(
         val captureOn by captureActive
         val isMinimized by minimized
 
-        val dragModForHandle = Modifier.pointerInput(Unit) {
-            detectDragGestures(
-                onDrag = { change, dragAmount ->
-                    change.consume()
-                    onDrag(dragAmount.x, dragAmount.y)
-                },
-                onDragEnd = { persistPosition() },
-            )
-        }
-
-        // P21: 최소화 상태 — 캡처가 켜져 있으면 카드 유무와 무관하게 작은 핸들만 렌더(거의 안 가림).
-        // 캡처가 꺼진 상태(데모 종료 등)면 핸들도 숨겨 화면을 완전히 비운다.
-        if (isMinimized) {
-            if (!captureOn) return
-            val scaleValue by scale
-            CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
-                MinimizedHandle(
-                    dragModifier = dragModForHandle,
-                    onRestore = { toggleMinimized() },
-                )
-            }
-            return
-        }
+        // P24: 최소화 상태 — 메인 창에는 아무것도 렌더하지 않는다(완전 비움).
+        // 최소화 복원은 별도 상시 touchable 핸들 창(길게 누르기)이 담당한다. 메인 창은 기본 통과라
+        // 메인 창 안에 복원 핸들을 두면 탭이 안 먹기 때문이다(과거 MinimizedHandle 은 제거).
+        if (isMinimized) return
 
         // 캡처 활성(P20/P21)이면 카드가 없어도 컨트롤 바(형식/검색/보정/진단/최소화)를 위해 렌더한다.
         if (slotOrder.isEmpty() && !hintVisible && !diagVisible && !captureOn) return
@@ -746,6 +880,55 @@ class OverlayRenderer(
         }
     }
 
+    /**
+     * [P24] 상호작용 토글 핸들의 루트 컴포저블(별도 창). 아주 작은 상시 touchable 버튼.
+     *  - 탭: 통과 ↔ 상호작용 모드 토글([toggleInteraction]).
+     *  - 드래그: 위치 이동(저장).
+     *  - 잠금 아이콘: 🔒(통과중=게임 터치 통과) / ✋(조작중=카드 조작 가능).
+     *  - 상호작용 모드 중 무조작 [InteractionMode.timeoutMs] 경과 시 자동 통과 복귀(주기 평가).
+     */
+    @androidx.compose.runtime.Composable
+    private fun HandleRoot() {
+        val mode by interactionMode
+        val scaleValue by scale
+
+        // 자동 복귀 타이머: 상호작용 모드에서 무조작 N초 경과면 통과 모드로 되돌린다.
+        androidx.compose.runtime.LaunchedEffect(mode.interactive) {
+            if (mode.interactive) {
+                while (true) {
+                    kotlinx.coroutines.delay(500L)
+                    val next = interactionMode.value.evaluate(now())
+                    if (next !== interactionMode.value) {
+                        setInteraction(next)
+                        break
+                    }
+                }
+            }
+        }
+
+        val handleDrag = Modifier.pointerInput(Unit) {
+            detectDragGestures(
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    onHandleDrag(dragAmount.x, dragAmount.y)
+                },
+                onDragEnd = { persistHandlePosition() },
+            )
+        }
+
+        val isMinimized by minimized
+        CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
+            InteractionHandle(
+                interactive = mode.interactive,
+                minimized = isMinimized,
+                dragModifier = handleDrag,
+                onToggle = { toggleInteraction() },
+                // 길게 누르기 → 카드/컨트롤 전체 최소화 ↔ 복원(P21 통합).
+                onLongPress = { toggleMinimized() },
+            )
+        }
+    }
+
     /** 카드 스택(배너 + 슬롯 카드들 + 진단 스트립). 측면/아래 배치 공통. */
     @androidx.compose.runtime.Composable
     private fun CardStack(
@@ -766,8 +949,9 @@ class OverlayRenderer(
                     isDoubles = fmt == com.pochamps.supporter.data.BattleFormat.DOUBLES,
                     diagOn = diagNow,
                     dragModifier = dragMod,
-                    onMinimize = { toggleMinimized() },
+                    onMinimize = { touchInteraction(); toggleMinimized() },
                     onSelectFormat = { doubles ->
+                        touchInteraction()
                         onSelectFormat(
                             if (doubles) com.pochamps.supporter.data.BattleFormat.DOUBLES
                             else com.pochamps.supporter.data.BattleFormat.SINGLES,
@@ -775,12 +959,13 @@ class OverlayRenderer(
                     },
                     // 카드가 없어도 검색: ControlSearch 로 핀 대상 슬롯을 정해 검색 시트를 연다.
                     onSearch = {
+                        touchInteraction()
                         val target = ControlSearch.targetSlot(fmt, slotOrder.toSet())
                         captureCardBounds()
                         openSheet.value = SheetState.Search(target, "")
                     },
-                    onCalibrate = { onCalibrate() },
-                    onToggleDiag = { toggleDiagnostics() },
+                    onCalibrate = { touchInteraction(); onCalibrate() },
+                    onToggleDiag = { touchInteraction(); toggleDiagnostics() },
                 )
             }
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.

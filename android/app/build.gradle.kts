@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.1.9" // 게임 중 ROI 보정 사용성 개선 — 명확한 보정 버튼 + 투명 스크림 (P23)
+        versionCode = 12
+        versionName = "0.1.10" // 오버레이 기본 터치 통과(NOT_TOUCHABLE) + 상호작용 토글 핸들 + 진단 스트립 격하 (P24)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

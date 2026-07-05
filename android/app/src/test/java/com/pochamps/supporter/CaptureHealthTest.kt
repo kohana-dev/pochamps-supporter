@@ -2,7 +2,9 @@ package com.pochamps.supporter
 
 import com.pochamps.supporter.capture.CaptureHealth
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -148,5 +150,19 @@ class CaptureHealthTest {
         assertEquals(CaptureHealth.Health.BLACK_SCREEN, h.onFrame(avgLuma = 0, nowMs = 1100))
         h.reset()
         assertEquals(CaptureHealth.Health.HEALTHY, h.currentHealth())
+    }
+
+    // --- P24: 헬스=정상시 안내 카드 미표시 판정 ---
+
+    @Test
+    fun 정상이면_안내카드_미표시() {
+        // 인식 성공 평상시(HEALTHY) → 안내 카드 없음(카드만 보여야 함).
+        assertFalse(CaptureHealth.shouldShowCard(CaptureHealth.Health.HEALTHY))
+    }
+
+    @Test
+    fun 문제일때만_안내카드_표시() {
+        assertTrue(CaptureHealth.shouldShowCard(CaptureHealth.Health.BLACK_SCREEN))
+        assertTrue(CaptureHealth.shouldShowCard(CaptureHealth.Health.NO_FRAMES))
     }
 }

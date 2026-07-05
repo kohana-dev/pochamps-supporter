@@ -2,10 +2,12 @@ package com.pochamps.supporter
 
 import com.pochamps.supporter.data.BattleFormat
 import com.pochamps.supporter.overlay.ControlSearch
+import com.pochamps.supporter.overlay.InteractionMode
 import com.pochamps.supporter.overlay.MinimizeState
 import com.pochamps.supporter.overlay.MinimizeStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -76,5 +78,58 @@ class ControlBarTest {
     fun 검색_싱글_슬롯0채움시도_슬롯0() {
         // 싱글은 슬롯이 하나뿐 → 채워져 있어도 항상 슬롯0(교정 지정).
         assertEquals(0, ControlSearch.targetSlot(BattleFormat.SINGLES, setOf(0)))
+    }
+
+    // --- P24: 터치 모드 상태 기계(통과 ↔ 상호작용) ---
+
+    @Test
+    fun 터치_기본은_통과모드() {
+        // 기본은 통과(메인 창 NOT_TOUCHABLE) — 평소 게임 터치가 그대로 통과해야 한다.
+        assertFalse(InteractionMode().interactive)
+    }
+
+    @Test
+    fun 터치_핸들탭_통과에서_상호작용_진입() {
+        val m = InteractionMode().toggle(nowMs = 1_000L)
+        assertTrue(m.interactive)
+        assertEquals(1_000L, m.lastTouchMs) // 진입 시각을 타임아웃 기준으로 잡는다.
+    }
+
+    @Test
+    fun 터치_핸들탭_상호작용에서_통과_즉시복귀() {
+        val interactive = InteractionMode().toggle(1_000L)
+        val back = interactive.toggle(2_000L)
+        assertFalse(back.interactive) // 다시 탭 → 즉시 통과 복귀.
+    }
+
+    @Test
+    fun 터치_무조작_타임아웃_자동통과복귀() {
+        val m = InteractionMode(timeoutMs = 6_000L).toggle(0L) // t=0 진입.
+        // 타임아웃 직전 → 아직 상호작용 유지(변화 없음 → 동일 인스턴스).
+        assertSame(m, m.evaluate(5_999L))
+        // 타임아웃 도달 → 통과 복귀.
+        val back = m.evaluate(6_000L)
+        assertFalse(back.interactive)
+    }
+
+    @Test
+    fun 터치_조작하면_타임아웃_리셋() {
+        val m = InteractionMode(timeoutMs = 6_000L).toggle(0L)
+        // t=5000 에 조작 → 마지막 조작 시각 갱신.
+        val touched = m.touched(5_000L)
+        assertEquals(5_000L, touched.lastTouchMs)
+        // 이제 t=6000 이어도 (6000-5000=1000 < 6000) 아직 유지.
+        assertSame(touched, touched.evaluate(6_000L))
+        // t=11000 에야 (11000-5000=6000) 통과 복귀.
+        assertFalse(touched.evaluate(11_000L).interactive)
+    }
+
+    @Test
+    fun 터치_통과모드에서는_조작무시() {
+        // 통과 모드(비상호작용)에서는 이 창이 터치를 안 받으므로 touched 는 no-op(동일 인스턴스).
+        val passthrough = InteractionMode()
+        assertSame(passthrough, passthrough.touched(1_000L))
+        // evaluate 도 통과 모드면 아무 변화 없음.
+        assertSame(passthrough, passthrough.evaluate(999_999L))
     }
 }

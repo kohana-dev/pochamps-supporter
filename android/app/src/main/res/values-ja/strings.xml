@@ -111,7 +111,9 @@
     <!-- P21: 常時表示のコントロールバー -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">最小化</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">調整</string>
     <string name="overlay_calibrate_desc">認識位置を合わせる</string>

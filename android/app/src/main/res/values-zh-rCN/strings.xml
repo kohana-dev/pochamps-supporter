@@ -86,7 +86,9 @@
     <!-- P21: 常驻控制栏 -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">最小化</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">校准</string>
     <string name="overlay_calibrate_desc">对齐识别框</string>

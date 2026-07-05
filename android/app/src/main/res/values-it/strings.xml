@@ -86,7 +86,9 @@
     <!-- P21: barra di controllo sempre visibile -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">Riduci a icona</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">Mira</string>
     <string name="overlay_calibrate_desc">Allinea il riquadro</string>

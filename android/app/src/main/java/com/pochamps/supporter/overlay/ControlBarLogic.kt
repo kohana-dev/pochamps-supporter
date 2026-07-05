@@ -66,3 +66,60 @@ object ControlSearch {
         return 0
     }
 }
+
+/**
+ * [P24] 오버레이 터치 모델의 **순수 상태 기계**(Android 의존성 없음 → JVM 유닛 테스트 가능).
+ *
+ * ## 배경(실사용자 리포트 item 1·2)
+ * 기존에는 정보/컨트롤 메인 창이 `FLAG_NOT_TOUCHABLE` 없이 떠서, 보이는 콘텐츠 영역
+ * (카드+컨트롤 바+진단 스트립) 전체가 **게임 터치를 가로챘다**. "작은 창" 전략으로 통과를
+ * 흉내 냈지만 콘텐츠가 커질수록 게임 조작이 막혔다.
+ *
+ * ## 2창 모델
+ *  - **메인 창**: 기본 `FLAG_NOT_TOUCHABLE` → 평소 모든 터치가 게임으로 통과(순수 표시).
+ *  - **핸들 창**: 아주 작은 상시 touchable 버튼. 탭하면 이 상태 기계를 [toggle] 해
+ *    메인 창의 `FLAG_NOT_TOUCHABLE` 를 잠시 제거(=상호작용 모드) → 유저 조작 → 다시 탭하거나
+ *    [timeoutMs] 무조작이면 통과 모드로 자동 복귀([evaluate]).
+ *
+ * 이 클래스는 "지금 메인 창이 touchable 이어야 하는가"([interactive])와 자동 복귀 판정만 담당한다.
+ * 실제 창 플래그 반영은 [OverlayRenderer] 가 [interactive] 값으로 수행한다.
+ *
+ * @property interactive true=상호작용 모드(메인 창 touchable), false=통과 모드(NOT_TOUCHABLE).
+ * @property lastTouchMs 마지막 상호작용 시각(ms). 통과 모드면 무의미(0).
+ * @param timeoutMs 상호작용 모드에서 이 시간(ms) 무조작이면 통과 모드로 복귀. 기본 6000.
+ */
+data class InteractionMode(
+    val interactive: Boolean = false,
+    val lastTouchMs: Long = 0L,
+    val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+) {
+    /**
+     * 핸들 탭 → 모드 토글.
+     *  - 통과 → 상호작용: [nowMs] 를 마지막 조작 시각으로 잡아 타임아웃을 새로 시작.
+     *  - 상호작용 → 통과: 즉시 통과 복귀(유저가 조작 끝냈다는 명시 신호).
+     */
+    fun toggle(nowMs: Long): InteractionMode =
+        if (interactive) copy(interactive = false, lastTouchMs = 0L)
+        else copy(interactive = true, lastTouchMs = nowMs)
+
+    /**
+     * 상호작용 모드 중 유저가 카드/시트를 조작할 때 호출 → 자동 복귀 타이머를 리셋.
+     * 통과 모드에서는 무시(상호작용 아닐 때의 조작은 없음).
+     */
+    fun touched(nowMs: Long): InteractionMode =
+        if (interactive) copy(lastTouchMs = nowMs) else this
+
+    /**
+     * 주기 평가: 상호작용 모드에서 [timeoutMs] 이상 무조작이면 통과 모드로 복귀.
+     * 변화가 있으면 새 상태, 없으면 자기 자신(호출부가 `!==` 로 반영 여부 판단).
+     */
+    fun evaluate(nowMs: Long): InteractionMode =
+        if (interactive && nowMs - lastTouchMs >= timeoutMs)
+            copy(interactive = false, lastTouchMs = 0L)
+        else this
+
+    companion object {
+        /** 상호작용 모드 자동 복귀 지연(ms). 조작 없이 이 시간 지나면 통과 모드로. */
+        const val DEFAULT_TIMEOUT_MS = 6_000L
+    }
+}

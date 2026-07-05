@@ -113,7 +113,9 @@
     <!-- P21: 항상 보이는 컨트롤 바(최소화/검색/보정/진단) -->
     <string name="overlay_minimize">−</string>
     <string name="overlay_minimize_desc">최소화</string>
-    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_handle_passthrough">🔒</string>
+    <string name="overlay_handle_interacting">✋</string>
+    <string name="overlay_handle_minimized">👁</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <!-- P23: 보정 진입 라벨(주 해결책 — 인식 위치 맞추기) / 검색 라벨(최후 수단 — 직접 지정) -->
     <string name="overlay_calibrate_label">보정</string>

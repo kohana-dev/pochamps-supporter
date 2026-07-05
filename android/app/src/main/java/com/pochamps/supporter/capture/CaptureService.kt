@@ -191,6 +191,8 @@ class CaptureService : Service() {
         val renderer = OverlayRenderer(
             context = this,
             positionStore = PrefsOverlayPositionStore(this),
+            // P24: 상호작용 토글 핸들 창의 위치는 메인 창과 별도 키로 저장(각자 위치 유지).
+            handlePositionStore = PrefsOverlayPositionStore(this, keyPrefix = "handle_"),
             // 후보 선택 확정 → 파이프라인이 기억 + 카드 갱신.
             onChooseCandidate = { slot, root, key ->
                 pipeline?.chooseCandidate(slot, root, key)
