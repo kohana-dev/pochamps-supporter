@@ -132,10 +132,13 @@ fun OverlayCard(
     onResizeEnd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    // [P30] EXPANDED 는 가로 2컬럼이라 더 넓게 허용(종족값 H·A·B·C·D·S 6칸이 한 줄에 여유롭게).
+    //  CHIP/CARD 는 기존 폭(300dp) 유지.
+    val maxCardWidth = if (stage == CardStage.EXPANDED) 380.dp.scaled() else 300.dp.scaled()
     Box(modifier = modifier) {
       Column(
         modifier = Modifier
-            .widthIn(min = 160.dp.scaled(), max = 300.dp.scaled())
+            .widthIn(min = 160.dp.scaled(), max = maxCardWidth)
             .background(CardBg, RoundedCornerShape(12.dp.scaled())),
     ) {
         // --- 상단 그립 바(드래그 핸들 + 이름 + 메가배지 + chevron) ---
@@ -304,13 +307,12 @@ private fun ResizeGrip(
     onDragEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val gripSize = 18.dp.scaled()
+    // 시각 그립은 작게(18dp) 유지하되 터치 영역은 넉넉히(28dp)해 드래그가 잘 잡히게 한다.
+    val touchSize = 28.dp.scaled()
+    val gripVisual = 18.dp.scaled()
     Box(
         modifier = modifier
-            .padding(2.dp.scaled())
-            .size(gripSize)
-            .background(HandlePassiveBg, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled()))
-            .border(1.dp.scaled(), AccentColor, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled()))
+            .size(touchSize)
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDrag = { change, amount ->
@@ -320,15 +322,23 @@ private fun ResizeGrip(
                     onDragEnd = { onDragEnd() },
                 )
             },
+        contentAlignment = Alignment.BottomEnd,
     ) {
-        // 대각선 리사이즈 표시(우하단 방향 빗금 2개).
-        androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize().padding(4.dp.scaled())) {
-            val s = size.minDimension * 0.16f
-            val c = AccentColor
-            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.35f),
-                androidx.compose.ui.geometry.Offset(size.width * 0.35f, size.height), s)
-            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.7f),
-                androidx.compose.ui.geometry.Offset(size.width * 0.7f, size.height), s)
+        // 작은 시각 그립(우하단 정렬): 대비 배경 + 강조 테두리 + 대각선 빗금.
+        Box(
+            modifier = Modifier
+                .size(gripVisual)
+                .background(HandlePassiveBg, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled()))
+                .border(1.dp.scaled(), AccentColor, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled())),
+        ) {
+            androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize().padding(4.dp.scaled())) {
+                val s = size.minDimension * 0.16f
+                val c = AccentColor
+                drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.35f),
+                    androidx.compose.ui.geometry.Offset(size.width * 0.35f, size.height), s)
+                drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.7f),
+                    androidx.compose.ui.geometry.Offset(size.width * 0.7f, size.height), s)
+            }
         }
     }
 }
@@ -946,8 +956,15 @@ private fun StatCell(s: OverlayCardData.StatLine, modifier: Modifier = Modifier)
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(s.shortLabel, color = SubTextColor, fontSize = 10.sp.scaled(), fontWeight = FontWeight.Bold)
-        Text("${s.value}", color = valueColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
+        Text(
+            s.shortLabel, color = SubTextColor, fontSize = 10.sp.scaled(), fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false,
+        )
+        // 값은 한 줄 유지(108 이 "10/8" 로 줄바꿈되지 않게). 좁은 칸에서도 잘리지 않게 softWrap=false.
+        Text(
+            "${s.value}", color = valueColor, fontSize = 11.sp.scaled(), fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false,
+        )
     }
 }
 

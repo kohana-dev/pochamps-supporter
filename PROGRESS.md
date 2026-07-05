@@ -4,6 +4,56 @@
 
 ---
 
+## P30 — 확장 카드 가로 2컬럼 레이아웃 + 모서리 드래그 리사이즈 (v0.1.15) ✅ 완료 (2026-07-05)
+
+> **실사용자 리포트(가로 화면):** 확장(EXPANDED) 카드를 다 열면 세로가 짧은 가로 화면에서 **화면 아래가 잘린다**(종족값 6줄 + 기술 + 상성이 세로로 쌓임). 또 크기 조절이 설정의 이산 칩(80/100/125/150%)뿐이라 미세조정이 어렵다.
+
+### 기능 1 — 확장 카드 가로 2컬럼 (핵심)
+- `overlay/OverlayCard.kt` EXPANDED 단계를 **가로 2컬럼**으로 재구성(`ExpandedTwoColumnPanel`):
+  - **왼쪽**: 도감# + 특성 + 주요 기술(사용률%) (+메가/바꾸기 진입).
+  - **오른쪽**: 종족값 + 방어 상성(약점/반감/무효).
+- **종족값 가로 한 줄**(`StatsRowHorizontal`/`StatCell`): 기존 6줄(HP 78 / 공격 81 …) → **H·A·B·C·D·S 6칸 가로 배치** + 합계. 세로 3~4줄 절약. `StatLine.shortLabel`(커뮤니티 표준 1글자, 언어 중립) 추가. 값은 `maxLines=1, softWrap=false`(108 이 "10/8" 로 줄바꿈되지 않게).
+- EXPANDED 만 카드 폭을 넓게 허용(300→**380dp** 스케일반영) — 6칸이 한 줄에 여유롭게. CHIP/CARD 는 기존 폭 유지.
+- **한 번에 한 카드만 EXPANDED**(`ExpandExclusive` 순수 로직 + `cycleStage`): 한 슬롯을 펼치면 다른 EXPANDED 슬롯을 CARD 로 자동 축소(더블배틀 세로 잘림 방지). CHIP/CARD 슬롯은 불변.
+- **안전망 스크롤**: 확장 패널 최대 높이 화면 높이의 ~85%(`LocalOverlayScreenHeightDp`) + 내부 세로 스크롤. 넘치지 않으면 스크롤 없음(wrap-content).
+- 터치 통과(P24)·밀도 스케일(P16) 보존 — 카드가 넓어져도 게임 조작 방해 없음(NOT_TOUCHABLE 유지).
+
+### 기능 2 — 모서리 드래그 리사이즈
+- 카드 **우하단 모서리 리사이즈 그립**(`ResizeGrip`) — 드래그하면 `overlayScale` 을 **연속** 조절(클램프 0.6~2.0), 즉시 반영 + 영속 저장.
+- 순수 로직 분리(JVM 테스트): `OverlayScale.applyDragDelta(current, dx, dy, refPx)` — (dx+dy)/2 를 기준 픽셀(화면 짧은 변)로 정규화해 증감, `clampCont` 로 0.6~2.0 클램프. `AppSettings.overlayScaleContinuous`(스냅 없이 저장), 렌더러 `onResizeDrag`/`persistResize` → `onScaleChanged` 콜백.
+- 설정 칩(특정값 80/100/125/150%, 스냅)/리셋은 유지 — 칩은 특정값, 드래그는 미세조정. getter 는 `clampCont` 로 통일해 칩값·드래그값 둘 다 보존.
+- 조작(interact) 모드에서만 그립 활성(창이 터치를 받는 동안만) — 터치 통과 보존. 시각 그립은 작게(18dp), 터치 영역은 넉넉히(28dp).
+
+### 테스트 (+13, 순수 JVM → 250)
+- `OverlayScaleTest`(+7): 연속 클램프(범위 내 스냅 안 함/범위 밖 경계/비정상값), 드래그 델타(우하 확대·좌상 축소·경계 클램프·기준0 무시·현재값 비정상 폴백).
+- `OverlayCardExpandedTest`(+1): 종족값 가로배치 `shortLabel`(H·A·B·C·D·S) 순서·값 대응·합계 일치.
+- `ExpandExclusiveTest`(+5, 신규): 한 번에 하나만 EXPANDED, 여러 EXPANDED 중 대상만 유지·나머지 CARD, CHIP 불변, CARD/CHIP 전환 시 타 슬롯 불변, 원본 맵 불변(순수 함수).
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720, 데모 세션)
+- **(before)** CARD 단계 landscape — 카드 우하단 리사이즈 그립 노출. (`field_samples/p30/01_before_card_stage.png`)
+- **(a) EXPANDED 2컬럼 잘림 해소**: 카드 탭 → 확장 → **왼쪽 특성/주요기술(89/84/78/73%), 오른쪽 종족값 H108·A130·B95·C80·D85·S102(한 줄) + 합계 600 + 방어상성(×4 Ice / ×2 Dragon·Fairy / ×½ Fire·Poison·Rock / 무효 Electric)** 이 **전부 화면 안에 보임**(하단 잘림 없음). (`field_samples/p30/02_after_expanded_2col.png`, 스케일 100% 참고 `02b`)
+- **(b) 종족값 한 줄**: 6스탯이 세로 6줄이 아니라 가로 1줄로 표시(값 줄바꿈 없음) — 위 스크린샷에서 확인.
+- **(d) 모서리 드래그 연속 리사이즈 + 저장**: 그립 우하 드래그 → 카드 확대(`overlay_scale=1.279`, 창 frame [195,70][645,437]→[195,70][776,530]). 안쪽 드래그 → 축소(`0.935`). SharedPreferences 영속 확인. (`03_resize_grow_128pct.png`, `04_resize_shrink_94pct.png`)
+- **(c) 한 슬롯 EXPANDED 시 다른 슬롯 축소**: 데모가 단일 슬롯이라 에뮬 시각확인 불가 → **`ExpandExclusiveTest` 5케이스(JVM)로 검증**(솔직 보고).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 250/250, failures 0**(기존 237 + P30 13).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter/data/dist/). **versionCode 17 / versionName 0.1.15**.
+
+### 코드 변경 요약
+- `overlay/OverlayScale.kt`: `CONT_MIN/CONT_MAX`(0.6~2.0), `clampCont`, `applyDragDelta`(순수 로직).
+- `overlay/OverlayCardData.kt`: `StatLine.shortLabel`(H·A·B·C·D·S), buildExpanded 에서 채움.
+- `overlay/OverlayCard.kt`: EXPANDED 2컬럼(`ExpandedTwoColumnPanel`/`StatsRowHorizontal`/`StatCell`), `AbilityMovesBlock` 공용화, `ResizeGrip`(28dp 터치/18dp 시각), `LocalOverlayScreenHeightDp`, EXPANDED 폭 380dp, 리사이즈 콜백 파라미터.
+- `overlay/OverlayRenderer.kt`: `ExpandExclusive`(순수), `cycleStage` 한번에하나, `onResizeDrag`/`persistResize`/`onScaleChanged`, `setScale`/init `clampCont`, `LocalOverlayScreenHeightDp` provide.
+- `data/AppSettings.kt`: `overlayScale` getter `clampCont`(스냅 제거), `overlayScaleContinuous`(연속 저장).
+- `capture/CaptureService.kt`: `onScaleChanged` → `overlayScaleContinuous` 영속.
+- build.gradle.kts: versionCode 17 / 0.1.15.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 실 대전(더블)에서 두 카드 동시 확장 시 한쪽만 EXPANDED 유지되는지 최종 확인(에뮬 데모 단일슬롯 — JVM 테스트로 로직 보증). 그립 드래그 감도(실 손가락 vs adb swipe)는 실기기에서 미세조정 여지.
+
+---
+
 ## P24 — 오버레이 기본 터치 통과 + 상호작용 토글 핸들 + 진단 스트립 격하 (v0.1.10) ✅ 완료 (2026-07-05)
 
 > **실사용자 리포트(실기기) 3건 대응:**
