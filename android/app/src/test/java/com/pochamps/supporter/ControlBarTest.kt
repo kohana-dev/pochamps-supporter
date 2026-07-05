@@ -5,6 +5,7 @@ import com.pochamps.supporter.overlay.ControlSearch
 import com.pochamps.supporter.overlay.InteractionMode
 import com.pochamps.supporter.overlay.MinimizeState
 import com.pochamps.supporter.overlay.MinimizeStore
+import com.pochamps.supporter.overlay.PassthroughWatchdog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -165,5 +166,92 @@ class ControlBarTest {
         val back = m.evaluate(12_000L)
         assertFalse(back.interactive)
         assertEquals(0L, back.lastTouchMs)
+    }
+
+    // --- P35 리포트1: 터치 통과 워치독(이중 안전망) ---
+
+    private val HARD = 30_000L
+
+    @Test
+    fun 워치독_순수통과상태는_리셋안함() {
+        // interactive=false, focusable=false → 메인 창이 터치를 안 받는 순수 통과. 문제 없음.
+        assertFalse(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = false, focusable = false, sheetOpen = false,
+                lastActivityMs = 0L, nowMs = 999_999L, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_interactive고착_하드타임아웃초과시_리셋() {
+        // interactive=true 인데 마지막 조작 후 하드 타임아웃 초과 → 고착으로 판정, 강제 리셋.
+        assertTrue(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = true, focusable = false, sheetOpen = false,
+                lastActivityMs = 0L, nowMs = HARD, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_focusable고착_하드타임아웃초과시_리셋() {
+        // focusable 고착(시트 열린 채 최소화 등)도 touchable=true 를 유발 → 리셋 대상.
+        assertTrue(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = false, focusable = true, sheetOpen = false,
+                lastActivityMs = 0L, nowMs = HARD + 1, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_하드타임아웃_직전에는_유지() {
+        // 아직 하드 타임아웃 전이면 정상 조작 흐름일 수 있으므로 리셋하지 않는다.
+        assertFalse(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = true, focusable = false, sheetOpen = false,
+                lastActivityMs = 0L, nowMs = HARD - 1, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_시트열림중에는_리셋보류() {
+        // 검색 시트가 실제 열려 있으면 IME 입력 중 — 초과해도 리셋하지 않는다(입력 방해 방지).
+        assertFalse(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = true, focusable = true, sheetOpen = true,
+                lastActivityMs = 0L, nowMs = 999_999L, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_하드타임아웃0이면_끔() {
+        // hardTimeoutMs<=0 이면 워치독 자체를 끈다(어떤 상태여도 리셋 안 함).
+        assertFalse(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = true, focusable = true, sheetOpen = false,
+                lastActivityMs = 0L, nowMs = 999_999L, hardTimeoutMs = 0L,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_조작으로_타임아웃리셋되면_유지() {
+        // 마지막 조작이 최근이면(now - lastActivity < hard) 고착이 아니므로 유지.
+        assertFalse(
+            PassthroughWatchdog.shouldForceReset(
+                interactive = true, focusable = false, sheetOpen = false,
+                lastActivityMs = 100_000L, nowMs = 110_000L, hardTimeoutMs = HARD,
+            ),
+        )
+    }
+
+    @Test
+    fun 워치독_기본하드타임아웃은_자동복귀보다_길다() {
+        // 워치독은 "정말 고착"만 잡는 최종 안전망 — 정상 자동복귀(12s)보다 넉넉히 커야 한다.
+        assertTrue(PassthroughWatchdog.DEFAULT_HARD_TIMEOUT_MS >= 2 * InteractionMode.DEFAULT_TIMEOUT_MS)
     }
 }

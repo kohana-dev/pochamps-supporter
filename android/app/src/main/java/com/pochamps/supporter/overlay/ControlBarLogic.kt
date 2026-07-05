@@ -134,3 +134,62 @@ data class InteractionMode(
         const val TIMEOUT_DISABLED = 0L
     }
 }
+
+/**
+ * [P35] 터치 통과 워치독의 **순수 판정 로직**(Android 의존성 없음 → JVM 유닛 테스트 가능).
+ *
+ * ## 배경(실사용자 리포트 1 — 치명 버그)
+ * 전체화면 공유 캡처 중, 처음엔 게임 터치가 통과되다가 **나중에 영구 차단**되어 앱을 강제종료해야만
+ * 풀리는 문제. 원인은 메인 창의 touchable 플래그가 여러 소스(자동복귀 타이머·focusable 복원·보정 창)에
+ * 흩어져 있어, 특정 경로(핸들 컴포지션 정지 / 시트 열린 채 최소화 / 컴포지션 이탈)에서
+ * `interactive` 또는 `focusable` 가 고착 → `touchable = interactive || focusable` 가 영구 true.
+ *
+ * ## 워치독(이중 안전망)
+ * 어떤 미지의 경로로 고착되더라도 자가 회복하도록, 서비스가 주기적으로(예 5s) 이 판정을 호출한다.
+ * "메인 창이 터치를 받는 상태(interactive 또는 focusable)인데 마지막 조작 후 [hardTimeoutMs] 초과"면
+ * **강제로 통과+비포커스로 리셋**해야 한다고 알린다. 실제 창 플래그 리셋은 [OverlayRenderer] 가 수행한다.
+ *
+ * [hardTimeoutMs] 는 정상 자동복귀([InteractionMode.timeoutMs])보다 넉넉히 크게(예 2배 이상) 잡아,
+ * 정상 조작 흐름을 방해하지 않고 "정말로 고착된" 경우만 잡는다. 자동복귀가 꺼져 있어도(사용자 설정)
+ * 워치독은 동작한다 — 워치독은 "설정과 무관한 최종 안전망"이기 때문이다. 단, 검색 시트가 실제로
+ * 열려 있는 동안([sheetOpen]=true)은 IME 입력 중이므로 강제 리셋하지 않는다(입력 방해 방지).
+ */
+object PassthroughWatchdog {
+
+    /**
+     * 지금 강제 통과 리셋이 필요한가 판정한다.
+     *
+     * @param interactive   메인 창이 상호작용(touchable) 모드인가.
+     * @param focusable     메인 창이 포커스(IME) 모드인가.
+     * @param sheetOpen     검색 시트가 실제로 열려 있는가(열려 있으면 리셋 보류 — 입력 중).
+     * @param lastActivityMs 마지막 사용자 조작 시각(uptimeMs). 조작마다 갱신.
+     * @param nowMs         현재 시각(uptimeMs).
+     * @param hardTimeoutMs 이 시간(ms) 이상 무조작이면 고착으로 보고 강제 리셋. 0 이하면 워치독 끔.
+     * @return true=강제 통과+비포커스 리셋 필요, false=정상(그대로 유지).
+     */
+    fun shouldForceReset(
+        interactive: Boolean,
+        focusable: Boolean,
+        sheetOpen: Boolean,
+        lastActivityMs: Long,
+        nowMs: Long,
+        hardTimeoutMs: Long,
+    ): Boolean {
+        if (hardTimeoutMs <= 0L) return false
+        // 메인 창이 터치를 받는 상태가 아니면(순수 통과) 아무 문제 없음.
+        if (!interactive && !focusable) return false
+        // 검색 시트가 실제 열려 있으면 IME 입력 중 — 리셋하지 않는다(정직: 입력 방해 회피).
+        if (sheetOpen) return false
+        // 마지막 조작 후 하드 타임아웃 초과 → 고착으로 판정.
+        return nowMs - lastActivityMs >= hardTimeoutMs
+    }
+
+    /**
+     * 워치독 하드 타임아웃 기본값(ms). 정상 자동복귀(12s)의 2배 이상 — 정상 조작을 방해하지 않고
+     * "정말 고착"만 잡는다. 자동복귀가 꺼져 있어도 이 값으로 최종 안전망이 동작한다.
+     */
+    const val DEFAULT_HARD_TIMEOUT_MS = 30_000L
+
+    /** 워치독 폴링 주기(ms). 서비스가 이 주기로 [shouldForceReset] 를 재평가한다. */
+    const val POLL_MS = 5_000L
+}

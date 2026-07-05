@@ -236,6 +236,8 @@ class CaptureService : Service() {
         // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
         renderer.setDiagnosticsEnabled(AppSettings(this).diagnosticsEnabled)
         overlay = renderer
+        // [P35 리포트1] 터치 통과 워치독 기동(이중 안전망 — 고착 자가 회복).
+        schedulePassthroughWatchdog()
     }
 
     /** 앱/오버레이/캡처 완전 종료(P16). 알림 종료·카드 종료·MainActivity 중지 공통 경로. */
@@ -531,6 +533,24 @@ class CaptureService : Service() {
     }
 
     /**
+     * [P35 리포트1] 터치 통과 워치독(이중 안전망). 오버레이가 떠 있는 동안 주기적으로
+     * [OverlayRenderer.runWatchdog] 를 호출해, 어떤 미지 경로로 터치가 고착되더라도 자가 회복시킨다.
+     * 서비스 수명 동안 반복(오버레이가 사라지면 자동 종료).
+     */
+    private var passthroughWatchdogScheduled = false
+    private fun schedulePassthroughWatchdog() {
+        if (passthroughWatchdogScheduled) return
+        passthroughWatchdogScheduled = true
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                val ov = overlay ?: run { passthroughWatchdogScheduled = false; return }
+                ov.runWatchdog(android.os.SystemClock.uptimeMillis())
+                mainHandler.postDelayed(this, com.pochamps.supporter.overlay.PassthroughWatchdog.POLL_MS)
+            }
+        }, com.pochamps.supporter.overlay.PassthroughWatchdog.POLL_MS)
+    }
+
+    /**
      * 캡처 건강 상태 변화 처리(K1 자동 진단, P17). 메인 스레드.
      * 오버레이 안내 카드를 갱신하고, 알림 문구도 상태에 맞게 바꾼다(상태바에서도 원인 인지).
      */
@@ -650,6 +670,10 @@ class CaptureService : Service() {
             runCatching { it.stop() }
         }
         projection = null
+        // [P35 리포트1] 보정 오버레이(MATCH_PARENT·focusable·touchable 전체화면 창)가 떠 있으면
+        //  캡처 중단 시 반드시 강제 dismiss — 안 그러면 전화면 터치가 영구 차단된다.
+        runCatching { calibrationOverlay?.dismiss() }
+        calibrationOverlay = null
         overlay?.setCaptureActive(false) // 형식 빠른 토글 숨김(중단 카드 우선, P20).
         overlay?.showCaptureStopped()
     }

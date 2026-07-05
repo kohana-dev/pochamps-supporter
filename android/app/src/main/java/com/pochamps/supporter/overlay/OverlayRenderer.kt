@@ -164,6 +164,54 @@ class OverlayRenderer(
     private val interactionMode = mutableStateOf(InteractionMode(timeoutMs = autoRevertMs))
 
     /**
+     * [P35] 마지막 사용자 조작 시각(uptimeMs). 워치독의 하드 타임아웃 기준.
+     * 핸들 탭/드래그, 카드 조작 등 어떤 상호작용에서든 [markActivity] 로 갱신한다.
+     * 자동복귀 타이머([InteractionMode.lastTouchMs])와 별도 — 워치독은 설정(자동복귀 on/off)과
+     * 무관한 최종 안전망이라 자체 시각을 둔다.
+     */
+    @Volatile private var lastActivityMs: Long = 0L
+
+    /**
+     * [P35] 자동복귀(auto-revert) 타이머 — **핸들 창 컴포지션과 무관한** Handler 루프.
+     *
+     * 기존 버그: 자동복귀 타이머가 `HandleRoot` 의 `LaunchedEffect` 안에 있어, 핸들 창 컴포지션이
+     * 멈추면(회전/최소화/시스템 사정) 타이머가 사라져 `interactive` 가 고착 → 터치 영구 차단.
+     * 이제 타이머를 렌더러 수명에 붙은 Handler 루프로 옮겨, 컴포지션 생존과 무관하게 항상 평가한다.
+     */
+    private var autoRevertRunning = false
+    private val autoRevertTick = object : Runnable {
+        override fun run() {
+            // 상호작용 모드일 때만 자동복귀를 평가한다. 통과 모드면 루프를 멈춘다(재진입 시 재기동).
+            val cur = interactionMode.value
+            if (!cur.interactive) {
+                autoRevertRunning = false
+                return
+            }
+            val next = cur.evaluate(now())
+            if (next !== cur) setInteraction(next)
+            // 여전히 상호작용이면 계속 폴링.
+            if (interactionMode.value.interactive) {
+                mainHandler.postDelayed(this, AUTO_REVERT_POLL_MS)
+            } else {
+                autoRevertRunning = false
+            }
+        }
+    }
+
+    /** [P35] 자동복귀 폴링 루프 기동(상호작용 진입 시). 이미 돌고 있으면 no-op. */
+    private fun ensureAutoRevertRunning() {
+        if (autoRevertRunning) return
+        if (!interactionMode.value.interactive) return
+        autoRevertRunning = true
+        mainHandler.postDelayed(autoRevertTick, AUTO_REVERT_POLL_MS)
+    }
+
+    /** [P35] 사용자 조작 시각 갱신(워치독 하드 타임아웃 기준). 모든 상호작용 경로에서 호출. */
+    private fun markActivity() {
+        lastActivityMs = now()
+    }
+
+    /**
      * [P25] 마지막으로 반영한 화면 크기(px). 회전/구성 변경 재보정([onScreenConfigChanged]) 시
      * 이전 화면 대비 비율로 위치를 옮기는 기준. 최초 [showHandle] 시점에 세팅된다. 0=미설정.
      */
@@ -295,6 +343,14 @@ class OverlayRenderer(
         val next = MinimizeState(minimized.value).toggled()
         minimized.value = next.minimized
         minimizeStore.save(next)
+        // [P35] 최소화 시 열린 시트를 닫고 터치 플래그를 통과로 강제 리셋한다.
+        //  기존 버그: 시트(검색) 열린 채 최소화하면 OverlayRoot 가 조기 반환(if isMinimized return)해
+        //  focusable 복원 LaunchedEffect 에 도달하지 못하고 focusable 가 고착 → touchable 영구 true.
+        //  최소화는 "메인 창 완전 비움"이므로 시트/포커스/상호작용을 모두 통과 상태로 되돌린다.
+        if (next.minimized) {
+            openSheet.value = null
+            resetToPassthrough("minimize")
+        }
     }
 
     /**
@@ -555,6 +611,8 @@ class OverlayRenderer(
         showBattleNamesHint.value = false
         captureHealth.value = null // 중단 카드가 우선 — 건강 안내는 걷는다.
         captureStopped.value = true
+        // [P35] 캡처 중단 시 터치 플래그를 통과로 강제 리셋(고착 방지 — 중단 카드만 남아도 게임 터치 통과).
+        resetToPassthrough("captureStopped")
     }
 
     /** 장시간 미인식 시 "배틀명 표시 ON" 1회 안내 배너(세션당 1회). */
@@ -594,6 +652,9 @@ class OverlayRenderer(
     }
 
     fun destroy() {
+        // [P35] 자동복귀/워치독 Handler 콜백 정리(누수·좀비 타이머 방지).
+        mainHandler.removeCallbacks(autoRevertTick)
+        autoRevertRunning = false
         if (!added && !handleAdded) {
             lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
             return
@@ -798,6 +859,7 @@ class OverlayRenderer(
     private fun setFocusable(wantFocus: Boolean) {
         if (focusable == wantFocus) return
         focusable = wantFocus
+        markActivity() // P35: 포커스 전환도 조작 — 워치독 기준 시각 갱신.
         applyMainFlags()
     }
 
@@ -817,16 +879,79 @@ class OverlayRenderer(
     /**
      * [P24] 상호작용 모드 전이 반영(핸들 탭/자동 복귀/유저 조작 후).
      * 상태 기계 [InteractionMode] 결과를 저장하고, 변화가 있으면 메인 창 플래그를 즉시 갱신한다.
+     * [P35] 상호작용 진입 시 자동복귀 Handler 루프를 기동한다(컴포지션 무관).
      */
     private fun setInteraction(next: InteractionMode) {
         val prev = interactionMode.value
         interactionMode.value = next
         if (prev.interactive != next.interactive) applyMainFlags()
+        if (next.interactive) ensureAutoRevertRunning()
     }
 
     /** 핸들 탭 → 통과 ↔ 상호작용 토글. */
     private fun toggleInteraction() {
+        markActivity() // P35: 조작 시각 갱신(워치독 기준).
         setInteraction(interactionMode.value.toggle(now()))
+    }
+
+    /**
+     * [P35] **터치 플래그 단일 리셋 경로** — 무조건 통과(비-touchable)+비포커스로 강제 복원한다.
+     *
+     * 리포트 1(치명 버그)의 근본 대응: interactive/focusable 플래그가 어떤 경로로 고착되든
+     * (핸들 컴포지션 정지, 시트 열린 채 최소화, 컴포지션 이탈, 워치독 감지) 이 한 함수가
+     * 상태를 초기화하고 창 플래그를 즉시 통과로 되돌린다. 게임 터치가 다시 100% 통과된다.
+     *
+     * @param reason 로그용 원인 식별자(어느 경로에서 리셋됐는지 추적).
+     */
+    private fun resetToPassthrough(reason: String) {
+        var changed = false
+        if (interactionMode.value.interactive) {
+            interactionMode.value = interactionMode.value.copy(interactive = false, lastTouchMs = 0L)
+            changed = true
+        }
+        if (focusable) {
+            focusable = false
+            changed = true
+        }
+        // 플래그를 항상 통과+비포커스로 강제 반영(고착 방지 — 상태가 이미 false여도 창 플래그가
+        // 어긋나 있을 수 있으므로 무조건 재적용).
+        applyMainFlags()
+        autoRevertRunning = false
+        if (changed) {
+            android.util.Log.i(
+                "OverlayRenderer",
+                "resetToPassthrough($reason) — 터치 통과+비포커스 강제 복원",
+            )
+        }
+    }
+
+    /**
+     * [P35] 워치독(이중 안전망). 서비스가 주기적으로([PassthroughWatchdog.POLL_MS]) 호출한다.
+     *
+     * 메인 창이 터치를 받는 상태(interactive 또는 focusable)인데 마지막 조작 후 하드 타임아웃을
+     * 초과했으면(=어떤 미지의 경로로 고착) 강제 통과 리셋하고 로그를 남긴다. 검색 시트가 실제
+     * 열려 있는 동안은 IME 입력 중이므로 리셋을 보류한다(입력 방해 방지).
+     *
+     * 자동복귀 설정(on/off)과 무관하게 항상 동작한다 — 최종 안전망이기 때문이다.
+     */
+    fun runWatchdog(nowMs: Long = now()) {
+        val sheetOpen = openSheet.value is SheetState.Search
+        val stuck = PassthroughWatchdog.shouldForceReset(
+            interactive = interactionMode.value.interactive,
+            focusable = focusable,
+            sheetOpen = sheetOpen,
+            lastActivityMs = lastActivityMs,
+            nowMs = nowMs,
+            hardTimeoutMs = PassthroughWatchdog.DEFAULT_HARD_TIMEOUT_MS,
+        )
+        if (stuck) {
+            android.util.Log.w(
+                "OverlayRenderer",
+                "워치독: 터치 고착 감지(interactive=${interactionMode.value.interactive}, " +
+                    "focusable=$focusable, idleMs=${nowMs - lastActivityMs}) — 강제 통과 복귀",
+            )
+            resetToPassthrough("watchdog")
+        }
     }
 
     /**
@@ -834,6 +959,7 @@ class OverlayRenderer(
      * 통과 모드면 no-op(상호작용 아닐 때 이 창은 터치를 안 받으므로 호출도 안 됨).
      */
     private fun touchInteraction() {
+        markActivity() // P35: 조작 시각 갱신(워치독 기준).
         val next = interactionMode.value.touched(now())
         if (next !== interactionMode.value) interactionMode.value = next
     }
@@ -944,9 +1070,17 @@ class OverlayRenderer(
 
         // IME 포커스 토글: 검색 시트가 열려 있는 동안만 창이 포커스를 잡도록 한다.
         // (닫히거나 후보 시트로 바뀌면 즉시 포커스 반납 → 게임 키 입력 보존.)
+        // [P35] focusable 복원을 컴포지션 이탈에도 보장한다.
+        //  - LaunchedEffect(searchOpen): 시트 열림/닫힘에 따라 명시적으로 setFocusable 호출.
+        //  - DisposableEffect(Unit).onDispose: 이 컴포저블이 어떤 이유로든 컴포지션을 떠날 때
+        //    (최소화 조기반환·회전·프로세스 재구성) 반드시 setFocusable(false) 를 실행 → focusable 고착 방지.
+        //  이렇게 이중으로 두어, 시트 열린 채 이탈해도 touchable = interactive || focusable 이 고착되지 않는다.
         val searchOpen = sheet is SheetState.Search
         androidx.compose.runtime.LaunchedEffect(searchOpen) {
             setFocusable(searchOpen)
+        }
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            onDispose { setFocusable(false) }
         }
 
         // P16: 가로에서 시트가 열리면 옆으로(측면 flyout) 전개하고 창 위치를 화면 안으로 재조정한다.
@@ -1006,24 +1140,16 @@ class OverlayRenderer(
         val mode by interactionMode
         val scaleValue by scale
 
-        // 자동 복귀 타이머: 상호작용 모드에서 무조작 N초 경과면 통과 모드로 되돌린다.
-        androidx.compose.runtime.LaunchedEffect(mode.interactive) {
-            if (mode.interactive) {
-                while (true) {
-                    kotlinx.coroutines.delay(500L)
-                    val next = interactionMode.value.evaluate(now())
-                    if (next !== interactionMode.value) {
-                        setInteraction(next)
-                        break
-                    }
-                }
-            }
-        }
+        // [P35] 자동복귀 타이머는 더 이상 이 컴포지션에 두지 않는다(핸들 컴포지션 정지 시 타이머가
+        //  사라져 interactive 고착 → 터치 영구 차단하던 버그). 타이머는 렌더러 수명에 붙은 Handler
+        //  루프([autoRevertTick])로 옮겨 컴포지션 생존과 무관하게 항상 평가한다. 상호작용 진입은
+        //  [setInteraction]/[ensureAutoRevertRunning] 이 루프를 기동한다.
 
         val handleDrag = Modifier.pointerInput(Unit) {
             detectDragGestures(
                 onDrag = { change, dragAmount ->
                     change.consume()
+                    markActivity() // P35: 핸들 드래그도 조작 — 워치독 기준 갱신.
                     onHandleDrag(dragAmount.x, dragAmount.y)
                 },
                 onDragEnd = { persistHandlePosition() },
@@ -1205,6 +1331,9 @@ class OverlayRenderer(
 
         /** [P25] 핸들 가장자리 안전 여백(dp). 몰입형/곡면 대비 가장자리에서 약간 안으로. */
         const val HANDLE_EDGE_INSET_DP = 8
+
+        /** [P35] 자동복귀 Handler 폴링 주기(ms). 상호작용 모드에서 이 주기로 타임아웃을 평가. */
+        const val AUTO_REVERT_POLL_MS = 500L
     }
 }
 
