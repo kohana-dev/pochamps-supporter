@@ -119,18 +119,22 @@ class MainActivity : ComponentActivity() {
 }
 
 /** 앱 내 화면(가벼운 상태 전환 — Navigation 미도입, 기존 구조에 맞는 최소 구현). */
-private enum class Screen { HOME, SETTINGS }
+private enum class Screen { HOME, SETTINGS, LICENSES }
 
 @Composable
 private fun AppRoot() {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
-    // 설정 화면에서 시스템 뒤로가기는 액티비티를 종료하지 않고 홈으로 되돌린다(예측 가능한 뒤로가기).
-    androidx.activity.compose.BackHandler(enabled = screen == Screen.SETTINGS) {
-        screen = Screen.HOME
+    // 하위 화면에서 시스템 뒤로가기는 액티비티를 종료하지 않고 부모로 되돌린다(예측 가능한 뒤로가기).
+    androidx.activity.compose.BackHandler(enabled = screen != Screen.HOME) {
+        screen = if (screen == Screen.LICENSES) Screen.SETTINGS else Screen.HOME
     }
     when (screen) {
         Screen.HOME -> HomeScreen(onOpenSettings = { screen = Screen.SETTINGS })
-        Screen.SETTINGS -> SettingsScreen(onBack = { screen = Screen.HOME })
+        Screen.SETTINGS -> SettingsScreen(
+            onBack = { screen = Screen.HOME },
+            onOpenLicenses = { screen = Screen.LICENSES },
+        )
+        Screen.LICENSES -> LicensesScreen(onBack = { screen = Screen.SETTINGS })
     }
 }
 
@@ -146,6 +150,12 @@ private fun HomeScreen(onOpenSettings: () -> Unit) {
     var notifGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
     var battleAck by rememberSaveable { mutableStateOf(false) }
     var running by remember { mutableStateOf(false) }
+
+    // 지난 세션에서 크래시가 있었으면 안내 카드를 한 번 띄운다(선택 — 유저가 닫기 전까지).
+    // 저장된 로컬 로그 존재 여부만 본다(자동 전송 0, P34).
+    var showCrashNotice by rememberSaveable {
+        mutableStateOf(com.pochamps.supporter.crash.CrashReporter.hasReports(context))
+    }
 
     // 캡처 중단 후 오버레이 "재시작"(REORDER_TO_FRONT)은 onCreate 를 재실행하지 않으므로,
     // 액티비티가 다시 보일(ON_RESUME) 때 running=false 로 되돌려 "시작" 버튼(재동의 경로)을 복원한다(P7).
@@ -226,6 +236,14 @@ private fun HomeScreen(onOpenSettings: () -> Unit) {
             onStart = { startCapture() },
             onStop = { stopCapture() },
         )
+
+        // ── 지난 세션 크래시 안내(있을 때만, 유저가 닫기 전까지) ──
+        AnimatedVisibility(visible = showCrashNotice) {
+            CrashNoticeCard(
+                onOpenSettings = onOpenSettings,
+                onDismiss = { showCrashNotice = false },
+            )
+        }
 
         // ── 온보딩 체크리스트(미완료 시) ──
         AnimatedVisibility(visible = !onboarding.allReady && !running) {
@@ -646,12 +664,53 @@ private fun UnofficialNoticeShort(onOpenSettings: () -> Unit) {
     }
 }
 
+/**
+ * 지난 세션 크래시 안내 카드(P34) — 로컬에 저장된 크래시 로그가 있을 때만 홈 상단에 표시.
+ * 로그는 이미 로컬에 있고, 여기서는 "설정에서 공유할 수 있다"고만 안내한다(자동 전송 0).
+ */
+@Composable
+private fun CrashNoticeCard(onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cs.errorContainer),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                stringResource(R.string.home_crash_notice_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = cs.onErrorContainer,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.home_crash_notice_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onErrorContainer,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = onOpenSettings) {
+                    Text(stringResource(R.string.home_open_settings))
+                }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        stringResource(R.string.home_crash_notice_dismiss),
+                        color = cs.onErrorContainer,
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  설정 화면
 // ══════════════════════════════════════════════════════════════════════════
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit) {
+private fun SettingsScreen(onBack: () -> Unit, onOpenLicenses: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val scrollTopInset = WindowInsets.statusBars.asPaddingValues()
     Column(
@@ -704,15 +763,17 @@ private fun SettingsScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
 
-        // [고급] 진단 모드
+        // [고급] 진단 모드 · 버그 리포트 공유(로컬 크래시 로그)
         SettingsGroup(title = stringResource(R.string.settings_group_advanced)) {
             DiagnosticsToggle()
+            GroupDivider()
+            BugReportSection()
         }
         Spacer(Modifier.height(16.dp))
 
-        // [정보] 앱 버전 · 비공식 고지 · (P34 라이선스/정책 자리)
+        // [정보] 앱 버전 · 비공식 고지 · 개인정보처리방침 · 오픈소스 라이선스(P34)
         SettingsGroup(title = stringResource(R.string.settings_group_about)) {
-            AboutSection()
+            AboutSection(onOpenLicenses = onOpenLicenses)
         }
     }
 }
@@ -996,10 +1057,12 @@ private fun DataUpdateSection() {
     }
 }
 
-/** [정보] 앱 버전 · 비공식 고지 · (P34에서 라이선스/정책 링크가 들어갈 자리). */
+/** [정보] 앱 버전 · 비공식 고지 · 개인정보처리방침(브라우저) · 오픈소스 라이선스(P34). */
 @Composable
-private fun AboutSection() {
+private fun AboutSection(onOpenLicenses: () -> Unit) {
+    val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
+
     Text(stringResource(R.string.settings_about_version_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
     Text(
@@ -1023,14 +1086,175 @@ private fun AboutSection() {
     )
     Spacer(Modifier.height(14.dp))
 
-    // P34 자리표시: 개인정보처리방침 / 오픈소스 라이선스(현재 준비 중 안내).
+    // 개인정보처리방침(브라우저에서 열기) — GitHub Pages 로 서빙되는 HTML 정책 페이지.
     Text(stringResource(R.string.settings_about_legal_title), style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
     Text(
-        stringResource(R.string.settings_about_legal_placeholder),
+        stringResource(R.string.settings_about_privacy_summary),
         style = MaterialTheme.typography.bodySmall,
         color = cs.onSurfaceVariant,
     )
+    Spacer(Modifier.height(8.dp))
+    // 표시 언어가 영어일 때는 영문 정책을, 그 외에는 한국어 정책을 연다(정책 내용은 양쪽 상호 링크됨).
+    val privacyUrl =
+        if (AppSettings(context).displayLang == "en") stringResource(R.string.settings_about_privacy_url_en)
+        else stringResource(R.string.settings_about_privacy_url)
+    val openFailMsg = stringResource(R.string.settings_about_open_fail)
+    OutlinedButton(
+        onClick = { context.openUrlOrToast(privacyUrl, openFailMsg) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.settings_about_privacy_button))
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(onClick = onOpenLicenses, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.settings_about_licenses_button))
+    }
+}
+
+/**
+ * [고급] 버그 리포트 공유(P34) — 로컬에 저장된 최근 크래시 로그를 ACTION_SEND(text)로 공유.
+ * 저장·전송 원칙(research/crash_reporting.md): 로그는 기기 안에만 있고, 이 버튼을 눌러야만 밖으로 나간다.
+ */
+@Composable
+private fun BugReportSection() {
+    val context = LocalContext.current
+    var hasReports by remember {
+        mutableStateOf(com.pochamps.supporter.crash.CrashReporter.hasReports(context))
+    }
+    var statusMsg by remember { mutableStateOf<String?>(null) }
+
+    val subject = stringResource(R.string.settings_bugreport_share_subject)
+    val chooserTitle = stringResource(R.string.settings_bugreport_chooser)
+    val noneMsg = stringResource(R.string.settings_bugreport_none)
+    val clearedMsg = stringResource(R.string.settings_bugreport_cleared)
+
+    Text(stringResource(R.string.settings_bugreport_title), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        stringResource(R.string.settings_bugreport_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    Button(
+        enabled = hasReports,
+        onClick = {
+            val intent = com.pochamps.supporter.crash.CrashReporter.buildShareIntent(context, subject)
+            if (intent != null) {
+                context.startActivity(Intent.createChooser(intent, chooserTitle))
+            } else {
+                statusMsg = noneMsg
+                hasReports = false
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(stringResource(R.string.settings_bugreport_share))
+    }
+    if (!hasReports) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+            noneMsg,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    } else {
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = {
+            com.pochamps.supporter.crash.CrashReporter.clearReports(context)
+            hasReports = false
+            statusMsg = clearedMsg
+        }) {
+            Text(stringResource(R.string.settings_bugreport_clear))
+        }
+    }
+    statusMsg?.let {
+        Spacer(Modifier.height(6.dp))
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  오픈소스 라이선스 화면
+// ══════════════════════════════════════════════════════════════════════════
+
+/** [정보 > 오픈소스 라이선스] 정적 목록 + Apache 2.0 전문 링크(P34). */
+@Composable
+private fun LicensesScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    val scrollTopInset = WindowInsets.statusBars.asPaddingValues()
+    val openFailMsg = stringResource(R.string.settings_about_open_fail)
+    val apache2Url = stringResource(R.string.licenses_apache2_url)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = 20.dp, end = 20.dp,
+                top = 8.dp + scrollTopInset.calculateTopPadding(),
+                bottom = 32.dp,
+            ),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.licenses_back),
+                    tint = cs.onBackground,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                stringResource(R.string.licenses_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = cs.onBackground,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            stringResource(R.string.licenses_intro),
+            style = MaterialTheme.typography.bodyMedium,
+            color = cs.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Licenses.ENTRIES.forEachIndexed { i, entry ->
+                    if (i > 0) GroupDivider()
+                    Text(entry.name, style = MaterialTheme.typography.titleSmall, color = cs.onSurface)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "${entry.owner} · ${entry.license.label}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            stringResource(R.string.licenses_apache2_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { context.openUrlOrToast(apache2Url, openFailMsg) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.licenses_apache2_link))
+        }
+    }
 }
 
 // ── 권한 헬퍼 ──────────────────────────────────────────────────────────────
@@ -1053,6 +1277,18 @@ private fun Context.requestNotificationPermissionIfNeeded(
 ) {
     if (!notificationPermissionRequired()) return
     if (!hasNotificationPermission()) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+}
+
+/** 외부 URL 을 브라우저로 연다. 열 앱이 없으면 토스트로 안내(크래시 방지). */
+private fun Context.openUrlOrToast(url: String, failMessage: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        startActivity(intent)
+    } catch (e: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(this, failMessage, android.widget.Toast.LENGTH_LONG).show()
+    }
 }
 
 /** '다른 앱 위에 표시' 시스템 설정 화면으로 이동. */

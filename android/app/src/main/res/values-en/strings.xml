@@ -50,6 +50,34 @@
     <string name="settings_about_legal_title">Terms · Licenses</string>
     <string name="settings_about_legal_placeholder">The privacy policy and open-source license notices will be added in an upcoming update. This app collects and transmits no data; all processing happens on your device.</string>
 
+    <!-- ===== P34 About: privacy policy · open-source licenses ===== -->
+    <string name="settings_about_privacy_summary">This app collects and transmits no data. All processing happens on your device.</string>
+    <string name="settings_about_privacy_button">Privacy policy (open in browser)</string>
+    <string name="settings_about_licenses_button">Open-source licenses</string>
+    <string name="settings_about_open_fail">No app can open this link.</string>
+
+    <!-- Open-source licenses screen -->
+    <string name="licenses_title">Open-source licenses</string>
+    <string name="licenses_intro">This app uses the following open-source software. Copyrights and licenses belong to their respective owners.</string>
+    <string name="licenses_apache2_note">Full text of the Apache License 2.0 for the libraries below:</string>
+    <string name="licenses_apache2_link">View Apache License 2.0 full text</string>
+    <string name="licenses_back">Back</string>
+
+    <!-- ===== P34 Advanced: share bug report (local crash logs, ACTION_SEND) ===== -->
+    <string name="settings_bugreport_title">Share bug report</string>
+    <string name="settings_bugreport_desc">If the app has crashed, you can share the recent error logs (stack trace, app version, device model) via email etc. to help improve it. Logs are stored on your device only, and leave it only when you tap share.</string>
+    <string name="settings_bugreport_share">Share recent error logs</string>
+    <string name="settings_bugreport_share_subject">PokeChamps Supporter bug report</string>
+    <string name="settings_bugreport_chooser">Share bug report</string>
+    <string name="settings_bugreport_none">No error logs to share. (No crashes recorded yet.)</string>
+    <string name="settings_bugreport_clear">Clear error logs</string>
+    <string name="settings_bugreport_cleared">Error logs cleared.</string>
+
+    <!-- Last-session crash notice (home, on relaunch) -->
+    <string name="home_crash_notice_title">The last session ended with an error</string>
+    <string name="home_crash_notice_body">The app was recorded as having crashed unexpectedly. You can help by sending the log from Settings → Advanced → \'Share bug report\'.</string>
+    <string name="home_crash_notice_dismiss">OK</string>
+
     <!-- ===== Onboarding (MainActivity) ===== -->
     <string name="onboarding_title">PokeChamps Supporter</string>
     <string name="onboarding_intro_title">What this app does</string>

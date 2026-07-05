@@ -4,6 +4,52 @@
 
 ---
 
+## P34 — 출시 팩: 개인정보처리방침 · 오픈소스 라이선스 화면 · 로컬 크래시 리포트 · 사용자 README (v0.2.0) ✅ 완료 (2026-07-05)
+
+> 근거: `PRODUCTION_PLAN.md` §4 + research 5종(`ip_risk.md` 고지 가이드, `crash_reporting.md` 로컬+수동공유, `distribution_github_releases.md` Obtainium 배지, `play_requirements.md`). 요지: **온디바이스·전송 0** 실체를 법적 문서·크래시 리포트·배포 준비물로 그대로 옮긴다. **GitHub Release 게시는 메인 세션이 직접**(이 단계에서 안 함).
+
+### 1. 개인정보처리방침 (ko/en, "No data collected")
+- `docs/privacy-policy.md`(한국어) + `docs/privacy-policy-en.md`(영어): 데이터 수집 0·전송 0, 계정/로그인 없음, 화면 캡처는 온디바이스 OCR 전용(저장·전송 0), 인터넷은 "데이터 업데이트" 수동 버튼의 정적 JSON 다운로드뿐(IP 로그는 GitHub 인프라 소관), 크래시 로그는 로컬 저장·유저 공유 시에만 전송. 연락처는 GitHub Issues.
+- `docs/privacy-policy.html` + `docs/privacy-policy-en.html`: **Pages 렌더 보장용 HTML**. 저장소에 Jekyll(`_config.yml`) 미설정 → `.md` 는 원문 텍스트로 서빙되므로, 앱·README 는 `.html` URL 로 링크한다(양쪽 상호 링크·다크모드 대응·자체완결 CSS).
+- **Pages 경로 확인**: 기존 배포된 `…/data/dist/manifest.json`(dataVersion 20260705)가 200 으로 서빙됨을 확인 → Pages 가 루트에서 서빙하므로 `…/docs/privacy-policy.html` 도 동일 스킴으로 push 후 접근 가능(push 전이라 실제 200 확인은 게시 후).
+
+### 2. 앱 내 [정보] 섹션 완성 (P33 placeholder 대체)
+- `AboutSection`(MainActivity): 앱 버전 → 비공식 고지 전문(`unofficial_notice_full`, 기존) → **개인정보처리방침(브라우저 열기, `ACTION_VIEW`)** + **오픈소스 라이선스 화면** 진입. 표시 언어 en 이면 영문 정책 URL, 그 외 한국어 정책 URL.
+- **오픈소스 라이선스 화면**(`LicensesScreen` + `ui/Licenses.kt` 정적 목록): ML Kit(Text Recognition 4종)·Kotlin·kotlinx.serialization·AndroidX·Jetpack Compose = 모두 Apache-2.0. 항목별(이름·소유자·라이선스) + **Apache License 2.0 전문 링크**(`ACTION_VIEW`). 자동 생성 플러그인/신규 SDK 도입 없이 손 관리 목록(의존성 0 원칙 유지).
+- 데이터 출처 표기 없음 유지(기존 방침 — 사실 데이터, 공식 텍스트 통짜 복제 없음).
+- `Screen` enum 에 `LICENSES` 추가, 뒤로가기(BackHandler)는 LICENSES→SETTINGS→HOME 계층.
+
+### 3. 로컬 크래시 리포트 (SDK 0, 자동 전송 0)
+- `crash/CrashLog.kt`(**순수 JVM 로직**): 리포트 포맷(메타 헤더 + 스택트레이스) · 파일명(정렬 가능 timestamp) · **최근 5개 로테이션**(오래된 것부터 삭제) · 목록/최신/존재여부 · 공유 텍스트(최신순 병합) · 전체 삭제. Context 없이 `File` 만 다뤄 JVM 테스트.
+- `crash/CrashReporter.kt`(Android glue): `Thread.setDefaultUncaughtExceptionHandler` 로 기존 핸들러를 **감싸(chain)** 우리 저장 후 위임 → `filesDir/crash/` 에 스택트레이스+`APP_VERSION_NAME/CODE`+`Build.MANUFACTURER/MODEL`+안드로이드 버전 저장. `buildShareIntent` = `ACTION_SEND`(text/plain, chooser).
+- `SupporterApp`(Application) 신설 → `onCreate` 에서 `CrashReporter.install`. Manifest 에 `android:name=".SupporterApp"` 등록.
+- 설정 [고급]에 **"버그 리포트 공유"**(`BugReportSection`): 최근 로그 ACTION_SEND 공유 + "오류 로그 지우기". 로그 없으면 버튼 비활성 + 안내.
+- 홈 상단 **"지난 세션 오류 발생" 안내 카드**(`CrashNoticeCard`, 로컬 로그 있을 때만·유저가 닫기 전까지): 설정에서 공유 가능 안내(자동 전송 0).
+- **테스트** `CrashLogTest`(+9): 본문 메타/스택 포함, 스택 문자열화, 파일명 정렬성, 저장 후 최신순 목록, 5개 로테이션(오래된 2개 삭제), 공유 텍스트 최신순, 리포트 없을 때 null/false, 전체 삭제, 빈 디렉터리 삭제 안전.
+
+### 4. README 사용자화
+- 상단을 **일반 사용자용**으로 재작성: 앱 소개(스크린샷 `field_samples/p33`,`p32`) + **설치 가이드**(APK 직접 다운로드→설치, Play Protect "무시하고 설치" 안내 — 민감권한 미사용이라 하드블록 아님) + **Obtainium 배지/딥링크**(`obtainium://add/https://github.com/kohana-dev/pochamps-supporter`) + 사용법 요약 + **비공식 고지**(상표·정책·Issues 링크).
+- 개발자용(아키텍처·데이터 파이프라인·원격 갱신·빌드·권한·언어)은 하단 "개발자 문서" 섹션으로 이동. 테스트 수치 294 로 갱신, 소스 위치에 `SupporterApp`/`crash/` 추가.
+
+### 5. 버전 확정
+- **versionCode 21 / versionName 0.2.0**(build.gradle.kts). `APP_VERSION_NAME/CODE` buildConfigField 로 About 화면·크래시 리포트에 실값 노출.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 294/294, failures 0**(285 + CrashLog 9).
+- `:app:assembleRelease`(R8, arm64) → 성공. output-metadata.json = **versionCode 21 / versionName 0.2.0**, APK ~16.8MB. release 데이터 URL 불변(kohana-dev.github.io/pochamps-supporter).
+
+### 코드 변경 요약
+- 신규: `SupporterApp.kt` · `crash/CrashLog.kt` · `crash/CrashReporter.kt` · `ui/Licenses.kt` · `CrashLogTest.kt`.
+- 신규 문서: `docs/privacy-policy.md` · `docs/privacy-policy-en.md` · `docs/privacy-policy.html` · `docs/privacy-policy-en.html`.
+- `ui/MainActivity.kt`: `Screen.LICENSES`·`AboutSection`(정책 링크·라이선스 진입) 재작성·`BugReportSection`·`CrashNoticeCard`·`LicensesScreen`·`openUrlOrToast` 헬퍼.
+- `AndroidManifest.xml`: `application android:name=".SupporterApp"`.
+- strings(ko/en): 정책·라이선스·버그리포트·크래시 안내 23종. (미번역 로케일은 기본 ko 로 폴백 — 기존 정책.)
+- README.md 사용자화. build.gradle.kts: versionCode 21 / 0.2.0. PROGRESS 본 섹션.
+
+### 남은 실기기/게시 전용 항목
+- **GitHub Release v0.2.0 게시는 메인 세션이 직접**(서명 APK 첨부). Obtainium 배지·docs Pages URL 은 push + Release 게시 후 실제 200 최종 확인.
+- 실기기에서 실제 크래시 발생 시 `filesDir/crash/` 저장→"버그 리포트 공유" ACTION_SEND 왕복은 계측/실기기 확인 영역(포맷·로테이션·존재판정은 JVM 테스트로 보증).
+
 ## P33 — 운영급 앱 UI: M3 다크 테마 · 단계식 온보딩 · 설정 화면 (v0.2.0-rc2) ✅ 완료 (2026-07-05)
 
 > 근거: `PRODUCTION_PLAN.md` §3. 기존 MainActivity 는 기능 나열식 개발자 UI(온보딩·설정이 한 화면에 즉석 배치)였다. 실제 유저 배포 가능한 **운영 수준**으로 앱 화면(Activity)만 재설계한다. **오버레이/서비스/파이프라인 코드는 무수정**(회귀 방지) — Activity·theme·strings 만 대상.

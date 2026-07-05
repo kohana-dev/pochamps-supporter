@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.2.0-rc2" // 운영급 앱 UI: M3 다크 테마·단계식 온보딩·설정 화면 (P33)
+        versionCode = 21
+        versionName = "0.2.0" // 출시 팩: 개인정보처리방침·라이선스 화면·로컬 크래시 리포트·사용자 README (P34)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -53,6 +53,38 @@
     <string name="settings_about_legal_title">약관 · 라이선스</string>
     <string name="settings_about_legal_placeholder">개인정보처리방침과 오픈소스 라이선스 고지는 다음 업데이트에서 제공될 예정입니다. 본 앱은 어떤 데이터도 수집·전송하지 않으며 모든 처리는 기기 안에서만 이뤄집니다.</string>
 
+    <!-- ===== P34 정보: 개인정보처리방침 · 오픈소스 라이선스 ===== -->
+    <string name="settings_about_privacy_summary">이 앱은 어떤 데이터도 수집·전송하지 않습니다. 모든 처리는 기기 안에서만 이뤄집니다.</string>
+    <string name="settings_about_privacy_button">개인정보처리방침 (브라우저에서 열기)</string>
+    <!-- GitHub Pages 로 서빙되는 정책 페이지(HTML — Jekyll 미설정 저장소이므로 .md 는 원문 노출, .html 로 렌더 보장). -->
+    <string name="settings_about_privacy_url" translatable="false">https://kohana-dev.github.io/pochamps-supporter/docs/privacy-policy.html</string>
+    <string name="settings_about_privacy_url_en" translatable="false">https://kohana-dev.github.io/pochamps-supporter/docs/privacy-policy-en.html</string>
+    <string name="settings_about_licenses_button">오픈소스 라이선스</string>
+    <string name="settings_about_open_fail">이 링크를 열 수 있는 앱이 없습니다.</string>
+
+    <!-- 오픈소스 라이선스 화면 -->
+    <string name="licenses_title">오픈소스 라이선스</string>
+    <string name="licenses_intro">이 앱은 다음 오픈소스 소프트웨어를 사용합니다. 각 프로젝트의 저작권과 라이선스는 해당 소유자에게 있습니다.</string>
+    <string name="licenses_apache2_note">아래 Apache License 2.0 라이브러리의 라이선스 전문:</string>
+    <string name="licenses_apache2_link">Apache License 2.0 전문 보기</string>
+    <string name="licenses_apache2_url" translatable="false">https://www.apache.org/licenses/LICENSE-2.0</string>
+    <string name="licenses_back">뒤로</string>
+
+    <!-- ===== P34 고급: 버그 리포트 공유(로컬 크래시 로그, ACTION_SEND) ===== -->
+    <string name="settings_bugreport_title">버그 리포트 공유</string>
+    <string name="settings_bugreport_desc">앱이 갑자기 종료된 적이 있으면, 최근 오류 로그(스택트레이스·앱 버전·기기 모델)를 이메일 등으로 공유해 개선에 도움을 줄 수 있어요. 로그는 기기 안에만 저장되며, 공유를 누를 때만 밖으로 나갑니다.</string>
+    <string name="settings_bugreport_share">최근 오류 로그 공유</string>
+    <string name="settings_bugreport_share_subject">포챔스 서포터 버그 리포트</string>
+    <string name="settings_bugreport_chooser">버그 리포트 공유</string>
+    <string name="settings_bugreport_none">공유할 오류 로그가 없습니다. (아직 크래시 기록 없음)</string>
+    <string name="settings_bugreport_clear">오류 로그 지우기</string>
+    <string name="settings_bugreport_cleared">오류 로그를 지웠습니다.</string>
+
+    <!-- 지난 세션 크래시 안내(홈, 재실행 시) -->
+    <string name="home_crash_notice_title">지난 세션에서 오류가 발생했어요</string>
+    <string name="home_crash_notice_body">앱이 예기치 않게 종료된 기록이 있습니다. 설정 → 고급 → \'버그 리포트 공유\'에서 로그를 보내 개선에 도움을 줄 수 있어요.</string>
+    <string name="home_crash_notice_dismiss">확인</string>
+
     <!-- ===== 온보딩(MainActivity) ===== -->
     <string name="onboarding_title">포챔스 서포터</string>
     <string name="onboarding_intro_title">이 앱이 하는 일</string>
