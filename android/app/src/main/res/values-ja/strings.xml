@@ -113,7 +113,9 @@
     <string name="overlay_minimize_desc">最小化</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">名前領域を調整</string>
+    <string name="overlay_calibrate_label">調整</string>
+    <string name="overlay_calibrate_desc">認識位置を合わせる</string>
+    <string name="overlay_search_label">検索</string>
     <string name="overlay_diag_toggle">診断</string>
     <string name="overlay_section_stats">種族値</string>
     <string name="overlay_section_total">合計</string>

@@ -88,7 +88,9 @@
     <string name="overlay_minimize_desc">Minimieren</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">Namensbereich kalibrieren</string>
+    <string name="overlay_calibrate_label">Zielen</string>
+    <string name="overlay_calibrate_desc">Rahmen ausrichten</string>
+    <string name="overlay_search_label">Suche</string>
     <string name="overlay_diag_toggle">Diag.</string>
     <string name="overlay_section_stats">Basiswerte</string>
     <string name="overlay_section_total">Gesamt</string>

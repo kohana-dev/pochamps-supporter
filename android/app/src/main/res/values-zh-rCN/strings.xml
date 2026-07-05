@@ -88,7 +88,9 @@
     <string name="overlay_minimize_desc">最小化</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">校准名称区域</string>
+    <string name="overlay_calibrate_label">校准</string>
+    <string name="overlay_calibrate_desc">对齐识别框</string>
+    <string name="overlay_search_label">搜索</string>
     <string name="overlay_diag_toggle">诊断</string>
     <string name="overlay_section_stats">种族值</string>
     <string name="overlay_section_total">总和</string>

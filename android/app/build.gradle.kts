@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.1.8" // 실기기(Galaxy S25+) 더블배틀 ROI 기본값 교정 (P22)
+        versionCode = 11
+        versionName = "0.1.9" // 게임 중 ROI 보정 사용성 개선 — 명확한 보정 버튼 + 투명 스크림 (P23)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

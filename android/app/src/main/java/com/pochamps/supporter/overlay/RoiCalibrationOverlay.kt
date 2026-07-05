@@ -136,7 +136,9 @@ class RoiCalibrationOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x99_000000))
+                // P23: 스크림을 대폭 완화(0x99→0x14). 아래 게임 이름표가 선명히 보여야
+                //  그 위로 박스를 정확히 정렬할 수 있다. 아주 옅은 딤만 남겨 편집 모드임을 표시.
+                .background(Color(0x14_000000))
                 .onSizeChanged { canvas = it },
         ) {
             // 밴드들(픽셀 위치로 변환해 배치, 드래그/리사이즈).
@@ -218,8 +220,10 @@ private fun RoiBand(
                 width = with(density) { wPx.toInt().coerceAtLeast(1).toDp() },
                 height = with(density) { hPx.toInt().coerceAtLeast(1).toDp() },
             )
-            .background(Color(0x22_FFFFFF))
-            .border(2.dp, bandColor, RoundedCornerShape(2.dp))
+            // P23: 스크림을 걷어낸 대신, 박스 채움은 아주 옅게(이름표 가림 최소) + 테두리는
+            //  굵고 진하게(3dp) 대비를 높여 박스 위치를 또렷이 식별.
+            .background(Color(0x14_FFFFFF))
+            .border(3.dp, bandColor, RoundedCornerShape(2.dp))
             .pointerInput(index, canvas) {
                 detectDragGestures { change, drag ->
                     change.consume()

@@ -115,7 +115,9 @@
     <string name="overlay_minimize_desc">Minimize</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">Calibrate name area</string>
+    <string name="overlay_calibrate_label">Aim</string>
+    <string name="overlay_calibrate_desc">Align recognition box</string>
+    <string name="overlay_search_label">Search</string>
     <string name="overlay_diag_toggle">Diag</string>
     <string name="overlay_section_stats">Base stats</string>
     <string name="overlay_section_total">Total</string>

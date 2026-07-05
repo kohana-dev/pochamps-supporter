@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -65,6 +66,8 @@ private val NegDelta = Color(0xFF_EF5350)
 private val ExitColor = Color(0xFF_E57373)
 // P21: 컨트롤 바/최소화 핸들 배경(카드보다 조금 더 투명 — 게임을 덜 가리게).
 private val ControlBarBg = Color(0xCC_1A1A1A)
+// P23: 보정(조준) 아이콘/라벨 색 — 게임 중 눈에 확 띄도록 밝은 노랑.
+private val AimIconColor = Color(0xFF_FFD54F)
 
 /**
  * 오버레이 카드 스케일(P16). 밀도 기반 배수 — 모든 dp/sp 를 이 값으로 곱한다(graphicsLayer 아님 →
@@ -336,19 +339,20 @@ fun ControlBar(
         FormatSegment(stringResource(R.string.format_single), selected = !isDoubles) { onSelectFormat(false) }
         FormatSegment(stringResource(R.string.format_doubles), selected = isDoubles) { onSelectFormat(true) }
         ControlDivider()
-        // 검색(🔍): 카드가 없어도 손으로 포켓몬을 띄운다.
-        ControlIcon(
-            label = stringResource(R.string.overlay_manual_search),
+        // 보정(주 해결책, P23): 인식 위치가 어긋났을 때 게임 화면 위에서 박스를 직접 맞춘다.
+        //  깨지던 combining-char(⃞) 대신 벡터로 그린 조준 사각형 아이콘 + "보정" 라벨로 확실히 보이게 한다.
+        CalibrateButton(
+            label = stringResource(R.string.overlay_calibrate_label),
+            contentDesc = stringResource(R.string.overlay_calibrate_desc),
+            onClick = onCalibrate,
+        )
+        // 검색(최후 수단, P23): 인식/보정으로도 안 되면 이름을 직접 검색해 지정한다.
+        LabeledControl(
+            icon = stringResource(R.string.overlay_manual_search),
+            label = stringResource(R.string.overlay_search_label),
             contentDesc = stringResource(R.string.overlay_manual_search_desc),
             color = AccentColor,
             onClick = onSearch,
-        )
-        // 보정(⃞): 인식 실패 현장에서 즉시 ROI 를 맞춘다.
-        ControlIcon(
-            label = stringResource(R.string.overlay_calibrate_icon),
-            contentDesc = stringResource(R.string.overlay_calibrate_desc),
-            color = AccentColor,
-            onClick = onCalibrate,
         )
         // 진단 ON/OFF: 원인(빈 텍스트 vs 미매칭)을 현장에서 바로 켠다.
         Text(
@@ -384,6 +388,77 @@ private fun ControlIcon(
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp.scaled(), vertical = 2.dp.scaled()),
     )
+}
+
+/**
+ * 아이콘 문자 + 짧은 라벨을 함께 보여주는 컨트롤(P23).
+ * 아이콘 하나만으로는 무슨 버튼인지 알기 어려운 게임 중 상황을 위해 라벨을 붙인다.
+ * 터치 영역만 clickable — 그 밖은 게임 통과.
+ */
+@Composable
+private fun LabeledControl(
+    icon: String,
+    label: String,
+    contentDesc: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp.scaled()),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp.scaled(), vertical = 2.dp.scaled()),
+    ) {
+        Text(icon, color = color, fontSize = 14.sp.scaled(), fontWeight = FontWeight.Bold)
+        Text(label, color = color, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * [P23] 보정 진입 버튼. 깨지던 combining-char 대신 **벡터로 직접 그린 조준 사각형**
+ * (모서리 브래킷 + 중앙 점)과 "보정"/"Aim" 라벨을 나란히 둔다 — 폰트/글리프에 의존하지 않아
+ * 어떤 기기에서도 안정적으로 렌더된다. 게임 중 눈에 잘 띄고 탭하기 쉬운 크기.
+ * 창=카드/터치통과 보존 — 이 Row 만 clickable.
+ */
+@Composable
+private fun CalibrateButton(
+    label: String,
+    contentDesc: String,
+    onClick: () -> Unit,
+) {
+    val iconSize = 15.dp.scaled()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp.scaled()),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp.scaled(), vertical = 2.dp.scaled()),
+    ) {
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier.size(iconSize),
+        ) {
+            val stroke = size.minDimension * 0.14f
+            val seg = size.minDimension * 0.32f // 모서리 브래킷 길이
+            val c = AimIconColor
+            // 4모서리 브래킷(조준 사각형).
+            // 좌상
+            drawLine(c, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(seg, 0f), stroke)
+            drawLine(c, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(0f, seg), stroke)
+            // 우상
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(size.width - seg, 0f), stroke)
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(size.width, seg), stroke)
+            // 좌하
+            drawLine(c, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(seg, size.height), stroke)
+            drawLine(c, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(0f, size.height - seg), stroke)
+            // 우하
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height), androidx.compose.ui.geometry.Offset(size.width - seg, size.height), stroke)
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height), androidx.compose.ui.geometry.Offset(size.width, size.height - seg), stroke)
+            // 중앙 점.
+            drawCircle(c, radius = size.minDimension * 0.11f, center = center)
+        }
+        Text(label, color = AimIconColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
+    }
 }
 
 /** 컨트롤 바 구획 구분자(얇은 세로선 대체 — 반투명 점/여백). */

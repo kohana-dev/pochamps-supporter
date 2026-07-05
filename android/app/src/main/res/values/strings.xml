@@ -61,7 +61,7 @@
     <string name="settings_diag_off">진단 스트립 표시 꺼짐</string>
 
     <!-- ===== ROI 보정 오버레이(P14) ===== -->
-    <string name="calib_hint">상대 이름표 위에 사각형을 맞추세요. 안쪽을 끌어 이동, 모서리를 끌어 크기 조절.</string>
+    <string name="calib_hint">아래 상대 이름표 위로 박스를 맞추세요. 안쪽을 끌어 이동, 모서리를 끌어 크기 조절.</string>
     <string name="calib_single">싱글 (1개)</string>
     <string name="calib_doubles">더블 (2개)</string>
     <string name="calib_reset">초기화</string>
@@ -115,7 +115,10 @@
     <string name="overlay_minimize_desc">최소화</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">이름 영역 보정</string>
+    <!-- P23: 보정 진입 라벨(주 해결책 — 인식 위치 맞추기) / 검색 라벨(최후 수단 — 직접 지정) -->
+    <string name="overlay_calibrate_label">보정</string>
+    <string name="overlay_calibrate_desc">인식 위치 맞추기</string>
+    <string name="overlay_search_label">검색</string>
     <string name="overlay_diag_toggle">진단</string>
     <string name="overlay_section_stats">종족값</string>
     <string name="overlay_section_total">합계</string>

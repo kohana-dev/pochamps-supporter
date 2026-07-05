@@ -88,7 +88,9 @@
     <string name="overlay_minimize_desc">最小化</string>
     <string name="overlay_handle_dot">▟</string>
     <string name="overlay_calibrate_icon">⃞</string>
-    <string name="overlay_calibrate_desc">校準名稱區域</string>
+    <string name="overlay_calibrate_label">校準</string>
+    <string name="overlay_calibrate_desc">對齊辨識框</string>
+    <string name="overlay_search_label">搜尋</string>
     <string name="overlay_diag_toggle">診斷</string>
     <string name="overlay_section_stats">種族值</string>
     <string name="overlay_section_total">總和</string>
