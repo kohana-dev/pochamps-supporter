@@ -110,16 +110,27 @@ data class InteractionMode(
         if (interactive) copy(lastTouchMs = nowMs) else this
 
     /**
-     * 주기 평가: 상호작용 모드에서 [timeoutMs] 이상 무조작이면 통과 모드로 복귀.
+     * 주기 평가: 상호작용 모드에서 [timeoutMs] 이상 무조작이면 통과(게임 조작) 모드로 복귀.
+     * [timeoutMs] 가 0 이하면(자동복귀 끔) 절대 복귀시키지 않는다([TIMEOUT_DISABLED]).
      * 변화가 있으면 새 상태, 없으면 자기 자신(호출부가 `!==` 로 반영 여부 판단).
      */
     fun evaluate(nowMs: Long): InteractionMode =
-        if (interactive && nowMs - lastTouchMs >= timeoutMs)
+        if (interactive && timeoutMs > 0L && nowMs - lastTouchMs >= timeoutMs)
             copy(interactive = false, lastTouchMs = 0L)
         else this
 
     companion object {
-        /** 상호작용 모드 자동 복귀 지연(ms). 조작 없이 이 시간 지나면 통과 모드로. */
-        const val DEFAULT_TIMEOUT_MS = 6_000L
+        /**
+         * 상호작용 모드 자동 복귀 지연(ms). 조작 없이 이 시간 지나면 통과(게임 조작) 모드로.
+         *
+         * [P25] 6초 → 12초로 늘렸다. 실사용자 리포트: 게임(가로)에서 자동복귀가 너무 빨라
+         * 조작 도중 통과 모드로 되돌아가 갇히는 느낌. 핸들이 항상 보이게(P25) 개선했으므로
+         * 자동복귀는 "안전장치"로만 동작하면 되고, 유저가 언제든 다시 조작 모드로 전환할 수 있다.
+         * 자동복귀는 항상 안전한 "통과(게임 조작 가능)" 상태로 되돌린다.
+         */
+        const val DEFAULT_TIMEOUT_MS = 12_000L
+
+        /** [P25] 자동복귀 끔(설정에서 유저가 끄면 이 값). 0 이하면 [evaluate] 가 복귀시키지 않는다. */
+        const val TIMEOUT_DISABLED = 0L
     }
 }

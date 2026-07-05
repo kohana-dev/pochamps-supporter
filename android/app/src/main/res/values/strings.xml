@@ -116,6 +116,10 @@
     <string name="overlay_handle_passthrough">🔒</string>
     <string name="overlay_handle_interacting">✋</string>
     <string name="overlay_handle_minimized">👁</string>
+    <!-- [P25] 토글 핸들 짧은 상태 라벨(가로 게임에서 가시성 강화) -->
+    <string name="overlay_handle_label_passthrough">게임</string>
+    <string name="overlay_handle_label_interacting">조작</string>
+    <string name="overlay_handle_label_minimized">복원</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <!-- P23: 보정 진입 라벨(주 해결책 — 인식 위치 맞추기) / 검색 라벨(최후 수단 — 직접 지정) -->
     <string name="overlay_calibrate_label">보정</string>

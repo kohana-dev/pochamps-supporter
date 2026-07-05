@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.1.10" // 오버레이 기본 터치 통과(NOT_TOUCHABLE) + 상호작용 토글 핸들 + 진단 스트립 격하 (P24)
+        versionCode = 13
+        versionName = "0.1.11" // 토글 핸들 가로 게임 가시성·위치 clamp·회전 재보정·크게+라벨·자동복귀 12초 (P25)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

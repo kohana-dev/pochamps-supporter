@@ -80,6 +80,12 @@ class OverlayRenderer(
     private val searchProvider: (query: String) -> List<SearchChoice> = { emptyList() },
     /** 확장 패널 자동 축소 지연(ms). 0 이하면 자동 축소 안 함. */
     private val autoCollapseMs: Long = 8_000L,
+    /**
+     * [P25] 상호작용 모드 자동복귀 지연(ms). 0 이하면 자동복귀 안 함(설정에서 끔).
+     * 서비스가 설정([AppSettings.autoRevertEnabled])에 따라 [InteractionMode.DEFAULT_TIMEOUT_MS]
+     * 또는 [InteractionMode.TIMEOUT_DISABLED] 를 주입. 기본은 12초(안전장치).
+     */
+    private val autoRevertMs: Long = InteractionMode.DEFAULT_TIMEOUT_MS,
     /** 캡처 중단 카드의 "재시작" 탭 콜백(서비스가 MainActivity 를 다시 연다). */
     onRestart: () -> Unit = {},
     /**
@@ -150,7 +156,14 @@ class OverlayRenderer(
      *    [InteractionMode.timeoutMs] 무조작이면 자동 통과 복귀.
      * Compose 가 관찰하도록 mutableState 로 감싼다(핸들 잠금 아이콘/타이머 반영).
      */
-    private val interactionMode = mutableStateOf(InteractionMode())
+    private val interactionMode = mutableStateOf(InteractionMode(timeoutMs = autoRevertMs))
+
+    /**
+     * [P25] 마지막으로 반영한 화면 크기(px). 회전/구성 변경 재보정([onScreenConfigChanged]) 시
+     * 이전 화면 대비 비율로 위치를 옮기는 기준. 최초 [showHandle] 시점에 세팅된다. 0=미설정.
+     */
+    private var lastScreenW = 0
+    private var lastScreenH = 0
 
     /** ROI 슬롯별 카드 데이터(더블배틀 대응 — 최대 2장). */
     private val cardsBySlot = mutableStateMapOf<Int, OverlayCardData>()
@@ -359,24 +372,44 @@ class OverlayRenderer(
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             // 핸들은 상시 touchable(FLAG_NOT_TOUCHABLE 없음). 키 포커스는 안 뺏게 NOT_FOCUSABLE 유지.
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            // [P25] FLAG_LAYOUT_NO_LIMITS 를 빼서 창이 화면(안전영역) 밖으로 나가지 못하게 한다 —
+            //   저장 좌표가 조금 어긋나도 시스템이 화면 안으로 붙여, 몰입형 전체화면에서도 안 잘린다.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val saved = handlePositionStore.load() ?: defaultHandlePosition()
+            val m = context.resources.displayMetrics
+            // [P25] 저장 위치가 있으면 현재 화면 안으로 clamp, 없으면 안전 기본값(우측 세로 중앙).
+            val approx = handleApproxSizePx()
+            val saved = handlePositionStore.load()
+                ?.clampedTo(m.widthPixels, m.heightPixels, approx, approx)
+                ?: defaultHandlePosition()
             x = saved.x
             y = saved.y
+            // 이후 회전 재보정의 기준 화면 크기 기록.
+            lastScreenW = m.widthPixels
+            lastScreenH = m.heightPixels
         }
     }
 
-    /** 핸들 기본 위치: 화면 우측 하단 근처(게임 조작을 가장 덜 가리는 구석). */
+    /** [P25] 핸들 창의 대략 크기(px). 실제 측정 전(창 추가 시점) clamp/기본값 계산에 쓴다. */
+    private fun handleApproxSizePx(): Int =
+        (HANDLE_APPROX_DP * context.resources.displayMetrics.density).toInt()
+
+    /** [P25] 가장자리 안전 여백(px). 몰입형/곡면 화면 대비 가장자리에서 약간 안으로. */
+    private fun handleEdgeInsetPx(): Int =
+        (HANDLE_EDGE_INSET_DP * context.resources.displayMetrics.density).toInt()
+
+    /** [P25] 핸들 기본 위치: 화면 우측 세로 중앙, 가장자리에서 약간 안쪽(가로/세로 모두 화면 안·손 닿기 쉬움). */
     private fun defaultHandlePosition(): OverlayPosition {
         val m = context.resources.displayMetrics
-        val size = (56 * m.density).toInt()
-        return OverlayPosition(
-            x = (m.widthPixels - size - (12 * m.density)).toInt(),
-            y = (m.heightPixels - size - (120 * m.density)).toInt(),
+        val size = handleApproxSizePx()
+        return OverlayPosition.handleDefault(
+            screenWidth = m.widthPixels,
+            screenHeight = m.heightPixels,
+            handleWidth = size,
+            handleHeight = size,
+            edgeInset = handleEdgeInsetPx(),
         )
     }
 
@@ -388,12 +421,53 @@ class OverlayRenderer(
             .clampedTo(
                 screenWidth = m.widthPixels,
                 screenHeight = m.heightPixels,
-                cardWidth = view.width.takeIf { it > 0 } ?: (56 * m.density).toInt(),
-                cardHeight = view.height.takeIf { it > 0 } ?: (56 * m.density).toInt(),
+                cardWidth = view.width.takeIf { it > 0 } ?: handleApproxSizePx(),
+                cardHeight = view.height.takeIf { it > 0 } ?: handleApproxSizePx(),
             )
         lp.x = newPos.x
         lp.y = newPos.y
         windowManager.updateViewLayout(view, lp)
+    }
+
+    /**
+     * [P25] 화면 구성 변경(회전/크기 변화) 재보정. 서비스가 `onConfigurationChanged` 에서 호출한다.
+     *
+     * 세로↔가로 전환 시 저장/현재 핸들 위치가 새 화면을 벗어나 "게임(가로)에서 핸들이 안 보이고
+     * 못 누르는" 문제를 막는다. 이전 화면 크기 대비 비율로 위치를 옮기고, 그래도 벗어나면
+     * 안전 기본값(우측 세로 중앙)으로 되돌린 뒤 새 좌표를 저장한다. 메인 정보 창도 함께 화면 안으로 clamp.
+     */
+    fun onScreenConfigChanged() {
+        mainHandler.post {
+            val m = context.resources.displayMetrics
+            val newW = m.widthPixels
+            val newH = m.heightPixels
+            // --- 핸들 창 재보정 ---
+            val hlp = handleParams
+            val hview = handleView
+            if (hlp != null && hview != null) {
+                val hw = hview.width.takeIf { it > 0 } ?: handleApproxSizePx()
+                val hh = hview.height.takeIf { it > 0 } ?: handleApproxSizePx()
+                val remapped = OverlayPosition.remapForScreen(
+                    current = OverlayPosition(hlp.x, hlp.y),
+                    oldW = lastScreenW,
+                    oldH = lastScreenH,
+                    newW = newW,
+                    newH = newH,
+                    handleWidth = hw,
+                    handleHeight = hh,
+                    edgeInset = handleEdgeInsetPx(),
+                )
+                hlp.x = remapped.x
+                hlp.y = remapped.y
+                runCatching { windowManager.updateViewLayout(hview, hlp) }
+                handlePositionStore.save(remapped)
+            }
+            // --- 메인 정보 창도 화면 안으로 clamp(회전 시 화면 밖 방지) ---
+            clampWindowIntoScreen()
+            // 다음 재보정 기준 갱신.
+            lastScreenW = newW
+            lastScreenH = newH
+        }
     }
 
     private fun persistHandlePosition() {
@@ -1073,6 +1147,14 @@ class OverlayRenderer(
         val slot: Int
         data class Candidates(override val slot: Int, val root: String) : SheetState
         data class Search(override val slot: Int, val query: String) : SheetState
+    }
+
+    private companion object {
+        /** [P25] 핸들 창 대략 크기(dp). 실제 컴포저블 크기와 대략 일치(clamp/기본값 계산용). */
+        const val HANDLE_APPROX_DP = 60
+
+        /** [P25] 핸들 가장자리 안전 여백(dp). 몰입형/곡면 대비 가장자리에서 약간 안으로. */
+        const val HANDLE_EDGE_INSET_DP = 8
     }
 }
 

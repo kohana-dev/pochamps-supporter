@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.projection.MediaProjection
@@ -228,6 +229,12 @@ class CaptureService : Service() {
             onToggleDiag = { enabled -> AppSettings(this).diagnosticsEnabled = enabled },
             // 최소화 상태 영속(P21): 재시작 후에도 최소화 유지.
             minimizeStore = com.pochamps.supporter.overlay.PrefsMinimizeStore(this),
+            // P25: 자동복귀 지연. 설정에서 끄면(false) TIMEOUT_DISABLED(0) → 유저가 다시 탭할 때까지 조작 유지.
+            autoRevertMs =
+                if (AppSettings(this).autoRevertEnabled)
+                    com.pochamps.supporter.overlay.InteractionMode.DEFAULT_TIMEOUT_MS
+                else
+                    com.pochamps.supporter.overlay.InteractionMode.TIMEOUT_DISABLED,
         )
         renderer.show()
         // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
@@ -657,6 +664,16 @@ class CaptureService : Service() {
         }
         runCatching { startActivity(intent) }
         stopSelf()
+    }
+
+    /**
+     * [P25] 화면 구성 변경(회전 등) 콜백. Service 는 manifest configChanges 와 무관하게
+     * 시스템이 이 콜백을 호출한다. 세로↔가로 전환 시 오버레이/핸들 위치를 새 화면 안으로 재보정해
+     * "게임(가로)에서 토글 핸들이 화면 밖으로 나가 안 보이고 못 누르는" 문제를 막는다.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlay?.onScreenConfigChanged()
     }
 
     override fun onDestroy() {

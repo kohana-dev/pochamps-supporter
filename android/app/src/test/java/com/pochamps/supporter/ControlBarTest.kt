@@ -132,4 +132,38 @@ class ControlBarTest {
         // evaluate 도 통과 모드면 아무 변화 없음.
         assertSame(passthrough, passthrough.evaluate(999_999L))
     }
+
+    // --- P25: 자동복귀 시간 조정(6초→12초) + 끄기(0) ---
+
+    @Test
+    fun 자동복귀_기본지연_12초() {
+        // P25: 게임(가로)에서 조작 중 너무 빨리 통과로 되돌아가지 않게 12초로 늘렸다.
+        assertEquals(12_000L, InteractionMode.DEFAULT_TIMEOUT_MS)
+    }
+
+    @Test
+    fun 자동복귀_12초경과_통과복귀() {
+        val m = InteractionMode(timeoutMs = InteractionMode.DEFAULT_TIMEOUT_MS).toggle(0L)
+        // 11.999초엔 유지, 12초에 통과 복귀.
+        assertSame(m, m.evaluate(11_999L))
+        assertFalse(m.evaluate(12_000L).interactive)
+    }
+
+    @Test
+    fun 자동복귀_끔이면_영원히_유지() {
+        // 설정에서 자동복귀 끔(TIMEOUT_DISABLED=0) → 아무리 시간이 지나도 조작 모드 유지.
+        val m = InteractionMode(timeoutMs = InteractionMode.TIMEOUT_DISABLED).toggle(0L)
+        assertTrue(m.interactive)
+        assertSame(m, m.evaluate(999_999L)) // 변화 없음(자동복귀 안 함).
+        assertTrue(m.evaluate(999_999L).interactive)
+    }
+
+    @Test
+    fun 자동복귀_복귀는_항상_통과안전상태() {
+        // 자동복귀 결과는 항상 interactive=false(게임 조작 가능한 안전 상태) + lastTouch 초기화.
+        val m = InteractionMode(timeoutMs = 12_000L).toggle(0L)
+        val back = m.evaluate(12_000L)
+        assertFalse(back.interactive)
+        assertEquals(0L, back.lastTouchMs)
+    }
 }

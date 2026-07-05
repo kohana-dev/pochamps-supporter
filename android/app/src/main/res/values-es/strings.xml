@@ -89,6 +89,10 @@
     <string name="overlay_handle_passthrough">🔒</string>
     <string name="overlay_handle_interacting">✋</string>
     <string name="overlay_handle_minimized">👁</string>
+    <!-- [P25] 토글 핸들 짧은 상태 라벨(가로 게임에서 가시성 강화) -->
+    <string name="overlay_handle_label_passthrough">Juego</string>
+    <string name="overlay_handle_label_interacting">Tocar</string>
+    <string name="overlay_handle_label_minimized">Mostrar</string>
     <string name="overlay_calibrate_icon">⃞</string>
     <string name="overlay_calibrate_label">Ajustar</string>
     <string name="overlay_calibrate_desc">Alinear el recuadro</string>

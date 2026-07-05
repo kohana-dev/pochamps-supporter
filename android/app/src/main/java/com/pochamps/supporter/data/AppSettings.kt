@@ -79,6 +79,17 @@ class AppSettings(context: Context) {
         }
         set(value) { prefs.edit().putString(KEY_FORMAT, value.slug).apply() }
 
+    /**
+     * [P25] 상호작용 모드 자동복귀 사용 여부.
+     * true(기본): 조작 모드에서 무조작 [com.pochamps.supporter.overlay.InteractionMode.DEFAULT_TIMEOUT_MS]
+     *   경과 시 통과(게임 조작) 모드로 자동 복귀(안전장치).
+     * false: 자동복귀 끔 — 유저가 핸들을 다시 탭할 때까지 조작 모드 유지.
+     *   핸들이 항상 보이므로(P25) 갇힐 위험이 없어 끄는 선택지를 제공한다.
+     */
+    var autoRevertEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_REVERT, true)
+        set(value) { prefs.edit().putBoolean(KEY_AUTO_REVERT, value).apply() }
+
     companion object {
         const val DEFAULT_LANG = "ko"
         private const val PREFS_NAME = "app_settings"
@@ -87,6 +98,7 @@ class AppSettings(context: Context) {
         private const val KEY_DIAG = "diagnostics_enabled"
         private const val KEY_SCALE = "overlay_scale"
         private const val KEY_FORMAT = "battle_format"
+        private const val KEY_AUTO_REVERT = "handle_auto_revert" // P25
 
         /** 언어 코드 → 사람이 읽는 이름(설정 UI). */
         val LANGUAGE_LABELS: Map<String, String> = mapOf(

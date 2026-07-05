@@ -66,6 +66,9 @@ private val NegDelta = Color(0xFF_EF5350)
 private val ExitColor = Color(0xFF_E57373)
 // P21: 컨트롤 바/최소화 핸들 배경(카드보다 조금 더 투명 — 게임을 덜 가리게).
 private val ControlBarBg = Color(0xCC_1A1A1A)
+// [P25] 토글 핸들 배경(불투명 — 화려한 게임 위에서도 잘 보이게). 조작중=강조 파랑, 통과중=짙은 회색.
+private val HandleActiveBg = Color(0xFF_2C6FE0)
+private val HandlePassiveBg = Color(0xF2_1A1A1A)
 // P23: 보정(조준) 아이콘/라벨 색 — 게임 중 눈에 확 띄도록 밝은 노랑.
 private val AimIconColor = Color(0xFF_FFD54F)
 
@@ -489,32 +492,52 @@ fun InteractionHandle(
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 조작중이면 눈에 띄는 강조색, 통과중이면 차분한 톤(현재 상태를 색으로도 구분).
-    val bg = if (interactive) AccentColor.copy(alpha = 0.92f) else ControlBarBg
+    // [P25] 화려한 게임 위에서도 눈에 띄게: 불투명 배경 + 대비 테두리 + 상태색 + 아이콘 + 짧은 라벨.
+    //  - 조작중(✋): 강조색 배경/흰 글자 — "지금 오버레이 조작 가능".
+    //  - 통과중(🔒): 짙은 불투명 배경/강조색 글자 — "게임 터치 100% 통과".
+    //  - 최소화(👁): 카드 전체 숨김 상태 — 탭하면 조작, 롱프레스로 복원.
+    val bg = if (interactive) HandleActiveBg else HandlePassiveBg
     val fg = if (interactive) Color.White else AccentColor
-    // 최소화 상태면 눈(👁) 글리프로 "복원 가능"을 알린다. 아니면 통과🔒/조작✋ 상태.
+    val borderColor = if (interactive) Color.White else AccentColor
+    // 아이콘 글리프.
     val glyphRes = when {
         minimized -> R.string.overlay_handle_minimized
         interactive -> R.string.overlay_handle_interacting
         else -> R.string.overlay_handle_passthrough
     }
-    Box(
+    // 짧은 상태 라벨(현지화): "게임"(통과중)/"조작"(조작중)/"복원"(최소화).
+    val labelRes = when {
+        minimized -> R.string.overlay_handle_label_minimized
+        interactive -> R.string.overlay_handle_label_interacting
+        else -> R.string.overlay_handle_label_passthrough
+    }
+    Column(
         modifier = modifier
             .then(dragModifier)
-            .background(bg, RoundedCornerShape(24.dp.scaled()))
+            // 최소 탭 영역 확보(≥48dp; 스케일 반영). 화려한 배경 위 대비를 위해 불투명 + 테두리.
+            .size(60.dp.scaled())
+            .background(bg, RoundedCornerShape(16.dp.scaled()))
+            .border(2.dp.scaled(), borderColor, RoundedCornerShape(16.dp.scaled()))
             .pointerInput(interactive, minimized) {
                 detectTapGestures(
                     onTap = { onToggle() },
                     onLongPress = { onLongPress() },
                 )
             }
-            .padding(horizontal = 12.dp.scaled(), vertical = 10.dp.scaled()),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 4.dp.scaled(), vertical = 4.dp.scaled()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             stringResource(glyphRes),
             color = fg,
-            fontSize = 18.sp.scaled(),
+            fontSize = 20.sp.scaled(),
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            stringResource(labelRes),
+            color = fg,
+            fontSize = 11.sp.scaled(),
             fontWeight = FontWeight.Bold,
         )
     }
