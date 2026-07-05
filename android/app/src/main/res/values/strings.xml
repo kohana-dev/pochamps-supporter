@@ -137,6 +137,14 @@
     <string name="overlay_matchup_resist_half">×½ 반감</string>
     <string name="overlay_matchup_immune">무효</string>
 
+    <!-- ===== P32: 오버레이 인텔 강화(아이템/스피드/팀원/×4 배지) ===== -->
+    <!-- 아이템 이름은 9언어 사전이 없어 영문 원문으로 표시됨(라벨만 현지화). -->
+    <string name="overlay_item_prefix">아이템: </string>
+    <string name="overlay_section_items">아이템</string>
+    <string name="overlay_section_speed">스피드 Lv50</string>
+    <string name="overlay_speed_scarf">+스카프</string>
+    <string name="overlay_section_teammates">예상 팀원</string>
+
     <!-- 캡처 중단 / 미인식 안내(상태별 UX) -->
     <string name="overlay_capture_stopped_title">캡처 중단됨</string>
     <string name="overlay_capture_stopped_body">화면이 잠기거나 캡처가 중단되었습니다.\n다시 시작하려면 화면 동의가 필요합니다.</string>

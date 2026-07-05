@@ -1604,3 +1604,45 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 
 ### 남은 실기기 전용 항목(불변)
 - 실기기 실 대전에서 ↻ 강제 재인식이 정지 화면 고착을 실제로 깨는지 최종 확인(에뮬 데모는 파이프라인 no-op — JVM 테스트로 로직 보증). 🔍 수동 지정은 실캡처에서도 데모와 동일 경로(`pipeline.pinSlot`). P17 이하 잔여 항목 동일.
+
+## P32 — 오버레이 인텔 강화: 아이템 사용률 · 스피드 실속 · 예상 팀원 · ×4 배지 (경쟁분석 Top5 반영, v0.2.0-rc1) ✅ 완료 (2026-07-05)
+
+> 근거: `PRODUCTION_PLAN.md` §2 로드맵 + `research/competitive_analysis.md`. 요지: 보유 DB(usage_db/pokedex_db)에 **이미 있는** 데이터를 오버레이 카드에 노출하는 것이 최우선. 모바일 실시간 오버레이는 시장 공백(경쟁자 전무), 그 중 **파트너 사용률 기반 "예상 팀원"은 유일 차별화 각도**.
+
+### 구현 4종
+1. **아이템 사용률** (`usage_db.items`): CARD 단계에 상위 1~2개 한 줄("아이템: Life Orb 57% · Sitrus Berry 10%", 넘치면 …). EXPANDED 왼쪽 컬럼에 상위 4개 섹션. **아이템 이름은 9언어 사전이 없어(영문뿐) 영문 원문 그대로 표기**(정직 기록 — pokedex_db dict 에 아이템 항목 없음). 라벨("아이템:")만 현지화.
+2. **스피드 실속 범위** (`SpeedCalc` 순수 함수): EXPANDED 종족값 줄 근처에 "스피드 Lv50: min~max +스카프". 공식(Lv50): `min=(2*base)*50/100+5`(무투자 중립), `max=floor(((2*base+31+63)*50/100+5)*1.1)`(풀투자 상향), `scarf=floor(max*1.5)`. **경계 검증: base 102(가브) → 107~169(+스카프 253)** — 169 는 커뮤니티 공지 실스피드값과 일치.
+3. **예상 팀원** (`usage_db.teammates`): EXPANDED 오른쪽 컬럼에 상위 3~4를 **작은 타입색 칩**(첫 타입 색). 이름은 `Teammate.key`로 pokedex_db 9언어 조회(없으면 영문 원문 fallback — 예 "Basculegion Male"). **탭하면 그 포켓몬을 슬롯에 검색-핀**(기존 `onPinSlot` 재사용, 대상 슬롯 = `ControlSearch.targetSlot` — 빈 슬롯 우선). key 없는 팀원은 탭 비활성.
+4. **4배 약점 배지 CARD 승격** (`TypeChart` 재사용): CARD 단계 타입칩 옆에 ×4 약점이 있으면 붉은 경고 배지("×4 얼음"). 없으면 미표시. EXPANDED 의 전체 방어 상성(×4/×2/½/무효)은 그대로 유지.
+
+### UX (2컬럼 P30 구조 보존)
+- CARD 높이 증가 최소화: 아이템 1줄 + ×4 배지 정도만 추가. 정보 밀도는 EXPANDED 로.
+- EXPANDED 2컬럼: **왼쪽**=도감#/특성/기술/아이템(4)/메가·바꾸기, **오른쪽**=종족값+스피드 실속/방어 상성/예상 팀원. 화면 초과 시 P30 안전망(≈85% 높이 + 내부 스크롤) 그대로.
+- 스케일/터치통과(P24)/기존 콜백 전부 보존. `onPinTeammate` 콜백만 신규 추가(선택적).
+
+### 순수 로직 분리 + 테스트 (+9 → 275)
+- `data/SpeedCalc.kt`(신규, Android 의존 0): `rangeLv50(baseSpe)` → `SpeedRange(min,max,scarf)`.
+- `data/PokedexRepository.kt`: `topItems`/`topTeammates`/`teammateName`(메가는 base 사용률 재사용 — topMoves 규칙 동일).
+- `SpeedCalcTest`(+4): base 102 경계값(107/169/253), base 0 방어, base 130 고속, 범위 단조성(min≤max≤scarf).
+- `OverlayCardDataTest`(+5): 아이템 상위 조립(Life Orb 57%, 내림차순), 스피드 범위(107/169/253), 예상 팀원 칩(whimsicott key→한국어 "엘풍"), ×4 배지(가브→얼음), ×4 없으면 배지 없음(이상해꽃 풀/독).
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720, 한국어 데모 세션)
+- **CARD** (`field_samples/p32/01`): 한카리아스 카드에 드래곤/땅 칩 옆 **×4 얼음** 붉은 배지 + "아이템: Life Orb 57% · Sitrus Berry 10%" 한 줄 렌더.
+- **EXPANDED** (`field_samples/p32/02`, `03`): 오른쪽 컬럼 **스피드 Lv50 107~169 +스카프 253**(SpeedCalc 실값 일치), 왼쪽 아이템 4종(Life Orb/Sitrus/Choice Scarf/Roseli), 하단 **예상 팀원** 칩(엘풍·리자몽·Basculegion Ma… — key 있는 팀원은 한국어, 없는 팀원 영문 fallback), 전체 방어 상성 유지.
+- 팀원 탭→핀 배선 확인(`onPinTeammate`→`onPinSlot`→`demoPinSlot`/`pipeline.pinSlot`). 데모 세션 자동복귀 타이밍 특성은 있으나 콜백 경로 E2E 연결 확인.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 275/275, failures 0**(266 + P32 9).
+- `:app:assembleRelease`(R8) → 성공. **versionCode 19 / versionName 0.2.0-rc1**.
+
+### 코드 변경 요약
+- `data/SpeedCalc.kt`(신규): Lv50 실속 범위 순수 함수.
+- `data/PokedexRepository.kt`: `topItems`/`topTeammates`/`teammateName`.
+- `overlay/OverlayCardData.kt`: `topItems`/`weak4Badge` 필드, `SpeedRangeLine`/`TeammateChip` 타입, `ExpandedData.speedRange`/`teammates`, `fromRepository`/`buildExpanded` 조립.
+- `overlay/OverlayCard.kt`: CARD ×4 배지(`Weak4Badge`)+아이템 줄(`ItemLineInline`), EXPANDED 아이템 섹션/`SpeedRangeRow`/`TeammatesFlow`, `onPinTeammate` 콜백.
+- `overlay/OverlayRenderer.kt`: `onPinTeammate` 배선(`ControlSearch.targetSlot`→`onPinSlot`).
+- strings(ko/en/ja 정확, de/es/fr/it/zh-rCN/zh-rTW best-effort): `overlay_item_prefix`/`overlay_section_items`/`overlay_section_speed`/`overlay_speed_scarf`/`overlay_section_teammates`.
+- build.gradle.kts: versionCode 19 / 0.2.0-rc1.
+
+### 남은 실기기 전용 항목
+- 실 대전 캡처에서 팀원 칩 탭→핀이 실 슬롯에 반영되는지 최종 확인(데모는 슬롯0 단일 — `pipeline.pinSlot` 경로는 P18 과 동일하게 검증됨).

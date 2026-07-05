@@ -108,6 +108,12 @@
     <string name="overlay_matchup_resist_quarter">×¼ 抵抗</string>
     <string name="overlay_matchup_resist_half">×½ 抵抗</string>
     <string name="overlay_matchup_immune">免疫</string>
+    <!-- P32: item usage / speed range / predicted teammates -->
+    <string name="overlay_item_prefix">道具: </string>
+    <string name="overlay_section_items">道具</string>
+    <string name="overlay_section_speed">速度 Lv50</string>
+    <string name="overlay_speed_scarf">+圍巾</string>
+    <string name="overlay_section_teammates">可能的隊友</string>
     <string name="overlay_capture_stopped_title">擷取已停止</string>
     <string name="overlay_capture_stopped_body">螢幕已鎖定或擷取已停止。\n需要螢幕授權才能重新開始。</string>
     <string name="overlay_capture_restart">▶ 重新開始</string>

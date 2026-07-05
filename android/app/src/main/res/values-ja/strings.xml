@@ -133,6 +133,12 @@
     <string name="overlay_matchup_resist_quarter">×¼ 半減</string>
     <string name="overlay_matchup_resist_half">×½ 半減</string>
     <string name="overlay_matchup_immune">無効</string>
+    <!-- P32: 持ち物使用率 / すばやさ実数値 / 予想の仲間 -->
+    <string name="overlay_item_prefix">持ち物: </string>
+    <string name="overlay_section_items">持ち物</string>
+    <string name="overlay_section_speed">すばやさ Lv50</string>
+    <string name="overlay_speed_scarf">+スカーフ</string>
+    <string name="overlay_section_teammates">予想の仲間</string>
 
     <!-- キャプチャ中断/未認識の案内 -->
     <string name="overlay_capture_stopped_title">キャプチャが中断されました</string>

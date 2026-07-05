@@ -118,6 +118,40 @@ class PokedexRepository private constructor(
         return fmt.moves.sortedByDescending { it.pct ?: -1.0 }.take(limit)
     }
 
+    /**
+     * [P32] 아이템 사용률 상위 N(포맷별). 원본이 이미 pct 내림차순이지만 방어적으로 재정렬.
+     * 메가 key 로 물으면 base 사용률을 재사용한다(topMoves 와 동일 규칙).
+     * ⚠️ 아이템 이름은 9언어 사전이 없어(영문뿐) name 을 그대로 반환한다(UI 에서 영문 표기).
+     */
+    fun topItems(key: String, format: BattleFormat, limit: Int = 4): List<UsageStat> {
+        val lookupKey = pokemonByKey[key]?.let { entry ->
+            if (entry.is_mega == true) entry.base_key ?: key else key
+        } ?: key
+        val fmt = usage.usage[lookupKey]?.forFormat(format) ?: return emptyList()
+        return fmt.items.sortedByDescending { it.pct ?: -1.0 }.take(limit)
+    }
+
+    /**
+     * [P32] 예상 팀원(파트너 사용률 상위 N). 원본 순서(사용률순)를 보존하되 [limit] 만큼 자른다.
+     * 메가 key 로 물으면 base 사용률을 재사용한다(topMoves 와 동일 규칙 — 메가는 별도 통계가 없음).
+     *
+     * 각 팀원의 표시명은 [teammateName] 으로 표시 언어를 해석한다(key 있으면 pokedex 9언어, 없으면 영문 원문).
+     */
+    fun topTeammates(key: String, format: BattleFormat, limit: Int = 4): List<Teammate> {
+        val lookupKey = pokemonByKey[key]?.let { entry ->
+            if (entry.is_mega == true) entry.base_key ?: key else key
+        } ?: key
+        val fmt = usage.usage[lookupKey]?.forFormat(format) ?: return emptyList()
+        return fmt.teammates.take(limit)
+    }
+
+    /**
+     * [P32] 팀원 칩 표시명 해석. key(pokedex join)가 있으면 표시 언어 이름을, 없으면 원문(영문) 그대로.
+     * 팀원 탭 시 검색-핀에 쓸 pokedex key 는 [Teammate.key] 를 그대로 사용(없으면 핀 불가).
+     */
+    fun teammateName(t: Teammate, lang: String): String =
+        t.key?.let { pokemonByKey[it]?.names?.get(lang) } ?: t.name
+
     // --- 수동 검색 fallback (DESIGN.md 5장) ---
 
     /**

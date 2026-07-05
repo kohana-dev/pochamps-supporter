@@ -3,6 +3,7 @@ package com.pochamps.supporter.overlay
 import com.pochamps.supporter.data.BattleFormat
 import com.pochamps.supporter.data.DefensiveMatchup
 import com.pochamps.supporter.data.PokedexRepository
+import com.pochamps.supporter.data.SpeedCalc
 import com.pochamps.supporter.data.TypeChart
 
 /**
@@ -26,6 +27,16 @@ data class OverlayCardData(
     val abilities: List<String>,
     /** 주요 기술 4개(사용률 상위) — (표시명, 사용률%). */
     val topMoves: List<MoveLine>,
+    /**
+     * [P32] 아이템 사용률(사용률 내림차순, 최대 4개). CARD 단계는 상위 1~2개, EXPANDED 는 4개까지 표시.
+     * 아이템 이름은 9언어 사전이 없어 **영문 원문 그대로**(usage_db items.name). truncate 는 UI 에서만.
+     */
+    val topItems: List<MoveLine> = emptyList(),
+    /**
+     * [P32] ×4 약점 타입(배지 승격용). CARD 단계에 타입칩 옆 작은 경고 배지로 노출한다. 없으면 빈 리스트.
+     * EXPANDED 의 전체 방어 상성([ExpandedData.matchups])은 그대로 유지된다(중복이지만 목적이 다름).
+     */
+    val weak4Badge: List<TypeChip> = emptyList(),
     /** 메가진화 가능 여부(배지/토글 노출용). */
     val canMega: Boolean,
     /** pokedex key(콜백/디버깅용). */
@@ -66,6 +77,18 @@ data class OverlayCardData(
     /** 방어 상성 버킷(UI 라벨 리소스 키). */
     enum class MatchupBucket { WEAK4, WEAK2, RESIST_QUARTER, RESIST_HALF, IMMUNE }
 
+    /**
+     * [P32] 스피드 실능치(실속) 범위(Lv50). EXPANDED 종족값 근처에 "최소~최대(+스카프)"로 표시.
+     * 값은 [SpeedCalc] 순수 함수 결과(무투자중립 / 풀투자상향 / +스카프).
+     */
+    data class SpeedRangeLine(val min: Int, val max: Int, val scarf: Int)
+
+    /**
+     * [P32] 예상 팀원 칩. [label] 표시명(표시 언어, key 없으면 영문 원문), [key] 는 탭 시 검색-핀 대상 pokedex key.
+     * 각 팀원의 첫 타입 색([colorHex])으로 작은 타입색 칩을 그린다(없으면 회색). key 가 null 이면 탭 비활성.
+     */
+    data class TeammateChip(val label: String, val key: String?, val colorHex: String?)
+
     /** 3단계 확장 패널 데이터. */
     data class ExpandedData(
         val dexNumber: Int,
@@ -76,6 +99,10 @@ data class OverlayCardData(
         val allMoves: List<MoveLine>,
         /** 방어 상성 줄들(약점/반감/무효, 있는 것만). */
         val matchups: List<MatchupLine>,
+        /** [P32] 스피드 실속 범위(Lv50). null 이면 표시 안 함. */
+        val speedRange: SpeedRangeLine? = null,
+        /** [P32] 예상 팀원 칩(상위 3~4). 빈 리스트면 행 미표시. */
+        val teammates: List<TeammateChip> = emptyList(),
     )
 
     /** 메가 폼 하나(세그먼트 토글 라벨 + 스왑될 카드 데이터). */
@@ -114,6 +141,16 @@ data class OverlayCardData(
                 MoveLine(label = label, pct = stat.pct)
             }
 
+            // [P32] 아이템 사용률 상위 4(CARD=1~2, EXPANDED=4). 이름은 영문 원문(9언어 사전 없음).
+            val topItems = repo.topItems(key, format, limit = 4).map { stat ->
+                MoveLine(label = stat.name, pct = stat.pct)
+            }
+
+            // [P32] ×4 약점 배지(CARD 승격). 현재 폼(메가면 메가 타입)의 방어 상성에서 ×4 만.
+            val weak4Badge = TypeChart.defensiveMatchup(entry.types).weak4.map { slug ->
+                TypeChip(label = repo.typeName(slug, lang) ?: slug, colorHex = repo.typeColor(slug))
+            }
+
             // 확장 패널: base 종족값과 비교(메가면 base 대비 증감 표시).
             val baseStats = repo.baseFormOf(key)?.base_stats
             val expanded = buildExpanded(repo, entry, lang, format, baseStats)
@@ -134,6 +171,8 @@ data class OverlayCardData(
                 typeChips = typeChips,
                 abilities = abilities,
                 topMoves = topMoves,
+                topItems = topItems,
+                weak4Badge = weak4Badge,
                 canMega = entry.can_mega == true,
                 key = entry.key,
                 expanded = expanded,
@@ -172,6 +211,23 @@ data class OverlayCardData(
             val matchup = TypeChart.defensiveMatchup(entry.types)
             val matchups = buildMatchupLines(repo, matchup, lang)
 
+            // [P32] 스피드 실속 범위(Lv50) — 현재 폼 종족 스피드 기준(메가면 메가 스피드).
+            val sr = SpeedCalc.rangeLv50(s.spe)
+            val speedRange = SpeedRangeLine(min = sr.min, max = sr.max, scarf = sr.scarf)
+
+            // [P32] 예상 팀원 상위 4(사용률순). 표시명=표시 언어(key 없으면 영문), 첫 타입 색으로 칩.
+            val teammates = repo.topTeammates(entry.key, format, limit = 4).map { tm ->
+                val color = tm.key
+                    ?.let { repo.pokemonByKey(it) }
+                    ?.types?.firstOrNull()
+                    ?.let { repo.typeColor(it) }
+                TeammateChip(
+                    label = repo.teammateName(tm, lang),
+                    key = tm.key,
+                    colorHex = color,
+                )
+            }
+
             return ExpandedData(
                 dexNumber = entry.dex,
                 stats = stats,
@@ -179,6 +235,8 @@ data class OverlayCardData(
                 statTotalDelta = statTotalDelta,
                 allMoves = allMoves,
                 matchups = matchups,
+                speedRange = speedRange,
+                teammates = teammates,
             )
         }
 

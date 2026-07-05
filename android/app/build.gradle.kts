@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.1.16" // 항상 다국어 OCR(4스크립트 병렬, 9언어 매칭, 캡처언어 설정 제거) (P31)
+        versionCode = 19
+        versionName = "0.2.0-rc1" // 오버레이 인텔 강화: 아이템 사용률/스피드 실속/예상 팀원/×4 배지 (P32)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

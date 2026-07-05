@@ -135,6 +135,12 @@
     <string name="overlay_matchup_resist_quarter">×¼ resist</string>
     <string name="overlay_matchup_resist_half">×½ resist</string>
     <string name="overlay_matchup_immune">Immune</string>
+    <!-- P32: item usage / speed range / predicted teammates -->
+    <string name="overlay_item_prefix">Item: </string>
+    <string name="overlay_section_items">Items</string>
+    <string name="overlay_section_speed">Speed Lv50</string>
+    <string name="overlay_speed_scarf">+Scarf</string>
+    <string name="overlay_section_teammates">Likely teammates</string>
 
     <!-- Capture stopped / no-recognition hint -->
     <string name="overlay_capture_stopped_title">Capture stopped</string>

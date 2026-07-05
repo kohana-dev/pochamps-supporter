@@ -108,6 +108,12 @@
     <string name="overlay_matchup_resist_quarter">×¼ resistente</string>
     <string name="overlay_matchup_resist_half">×½ resistente</string>
     <string name="overlay_matchup_immune">Immune</string>
+    <!-- P32: item usage / speed range / predicted teammates -->
+    <string name="overlay_item_prefix">Strumento: </string>
+    <string name="overlay_section_items">Strumenti</string>
+    <string name="overlay_section_speed">Vel. Lv50</string>
+    <string name="overlay_speed_scarf">+Sciarpa</string>
+    <string name="overlay_section_teammates">Compagni probabili</string>
     <string name="overlay_capture_stopped_title">Cattura interrotta</string>
     <string name="overlay_capture_stopped_body">Lo schermo si è bloccato o la cattura è stata interrotta.\nÈ necessario il consenso allo schermo per ricominciare.</string>
     <string name="overlay_capture_restart">▶ Riavvia</string>

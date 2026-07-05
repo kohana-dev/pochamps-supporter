@@ -108,6 +108,12 @@
     <string name="overlay_matchup_resist_quarter">×¼ résiste</string>
     <string name="overlay_matchup_resist_half">×½ résiste</string>
     <string name="overlay_matchup_immune">Immunisé</string>
+    <!-- P32: item usage / speed range / predicted teammates -->
+    <string name="overlay_item_prefix">Objet : </string>
+    <string name="overlay_section_items">Objets</string>
+    <string name="overlay_section_speed">Vit. Nv50</string>
+    <string name="overlay_speed_scarf">+Mouchoir</string>
+    <string name="overlay_section_teammates">Coéquipiers probables</string>
     <string name="overlay_capture_stopped_title">Capture arrêtée</string>
     <string name="overlay_capture_stopped_body">L\'écran s\'est verrouillé ou la capture a été arrêtée.\nLe consentement d\'écran est requis pour redémarrer.</string>
     <string name="overlay_capture_restart">▶ Redémarrer</string>

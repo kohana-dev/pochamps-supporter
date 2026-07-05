@@ -1123,6 +1123,13 @@ class OverlayRenderer(
                             openSheet.value = SheetState.Candidates(slot, root)
                         }
                     },
+                    // [P32] 예상 팀원 칩 탭 → 그 포켓몬을 슬롯에 핀(기존 pinSlot 재사용).
+                    // 대상 슬롯은 ControlSearch.targetSlot(빈 슬롯 우선, 없으면 슬롯0 덮어쓰기).
+                    onPinTeammate = { key ->
+                        touchInteraction()
+                        val target = ControlSearch.targetSlot(battleFormat.value, slotOrder.toSet())
+                        onPinSlot(target, key)
+                    },
                     onUnpin = { onUnpinSlot(slot); metaBySlot[slot] = meta.copy(pinned = false) },
                     // 🔍 수동 지정(P18): 어떤 카드가 떠 있든(정상/오인식) 검색 시트로 올바른 포켓몬 지정 → 핀.
                     onOpenSearch = { captureCardBounds(); openSheet.value = SheetState.Search(slot, "") },

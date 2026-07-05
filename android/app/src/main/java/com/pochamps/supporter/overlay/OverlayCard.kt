@@ -109,6 +109,11 @@ fun OverlayCard(
     onSelectMega: (Int) -> Unit = {},
     /** "바꾸기"(후보 선택 시트) 진입. */
     onOpenCandidateSheet: () -> Unit = {},
+    /**
+     * [P32] 예상 팀원 칩 탭 → 그 포켓몬을 슬롯에 검색-핀(기존 pinSlot 재사용). 인자는 pokedex key.
+     * null 이거나 칩의 key 가 null 이면 탭 비활성(영문뿐이라 join 불가한 팀원 등).
+     */
+    onPinTeammate: ((key: String) -> Unit)? = null,
     /** 핀 해제. */
     onUnpin: () -> Unit = {},
     /**
@@ -220,14 +225,19 @@ fun OverlayCard(
             )
         }
 
-        // --- 타입 칩 줄(항상 표시 = 1단계 핵심) ---
+        // --- 타입 칩 줄(항상 표시 = 1단계 핵심) + ×4 약점 배지(P32 CARD 승격) ---
         Row(
             modifier = Modifier
                 .padding(start = 12.dp.scaled(), end = 12.dp.scaled(), bottom = 8.dp.scaled())
                 .clickable { onInteract(); onTapCycle() },
             horizontalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             data.typeChips.forEach { chip -> TypeChipView(chip) }
+            // ×4 약점이 있으면 타입칩 옆에 작은 경고 배지(예: "×4 얼음"). 없으면 미표시.
+            if (data.weak4Badge.isNotEmpty()) {
+                Weak4Badge(data.weak4Badge)
+            }
         }
 
         // --- 2단계(CARD): 특성 + 주요기술 + (메가/바꾸기) 세로 배치 ---
@@ -238,6 +248,11 @@ fun OverlayCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp.scaled()),
             ) {
                 AbilityMovesBlock(data)
+
+                // [P32] 아이템 사용률: CARD 는 상위 1~2개만 한 줄(카드 높이 증가 최소화). 이름은 영문.
+                if (data.topItems.isNotEmpty()) {
+                    ItemLineInline(data.topItems.take(2))
+                }
 
                 // 메가 세그먼트 토글([기본][메가]/[메가 X][메가 Y]).
                 if (megaForms.isNotEmpty()) {
@@ -280,6 +295,7 @@ fun OverlayCard(
                     onInteract = onInteract,
                     onSelectMega = onSelectMega,
                     onOpenCandidateSheet = onOpenCandidateSheet,
+                    onPinTeammate = onPinTeammate,
                 )
             }
         }
@@ -866,6 +882,7 @@ private fun ExpandedTwoColumnPanel(
     onInteract: () -> Unit,
     onSelectMega: (Int) -> Unit,
     onOpenCandidateSheet: () -> Unit,
+    onPinTeammate: ((key: String) -> Unit)? = null,
 ) {
     // 안전망 최대 높이: 화면 높이의 ~85%. 화면 높이를 모르면(0) 제한 없음(wrap-content).
     val screenH = LocalOverlayScreenHeightDp.current
@@ -889,6 +906,12 @@ private fun ExpandedTwoColumnPanel(
             Text(stringResource(R.string.overlay_dex_prefix) + "${ex.dexNumber}",
                 color = SubTextColor, fontSize = 11.sp.scaled())
             AbilityMovesBlock(data)
+
+            // [P32] 아이템 사용률 상위 4(EXPANDED). 이름은 영문 원문(9언어 사전 없음).
+            if (data.topItems.isNotEmpty()) {
+                SectionLabel(stringResource(R.string.overlay_section_items))
+                data.topItems.forEach { item -> MoveRow(item) }
+            }
 
             if (megaForms.isNotEmpty()) {
                 MegaSegments(
@@ -914,10 +937,74 @@ private fun ExpandedTwoColumnPanel(
             SectionLabel(stringResource(R.string.overlay_section_stats))
             StatsRowHorizontal(ex)
 
+            // [P32] 스피드 실속 범위(Lv50): 최소~최대(+스카프). 종족값 줄 근처.
+            ex.speedRange?.let { sr -> SpeedRangeRow(sr) }
+
             if (ex.matchups.isNotEmpty()) {
                 SectionLabel(stringResource(R.string.overlay_section_matchup))
                 ex.matchups.forEach { line -> MatchupRow(line) }
             }
+
+            // [P32] 예상 팀원(파트너 사용률 상위). 작은 타입색 칩 — 탭하면 그 포켓몬 검색-핀.
+            if (ex.teammates.isNotEmpty()) {
+                SectionLabel(stringResource(R.string.overlay_section_teammates))
+                TeammatesFlow(ex.teammates, onPinTeammate = { key ->
+                    onInteract()
+                    onPinTeammate?.invoke(key)
+                })
+            }
+        }
+    }
+}
+
+/**
+ * [P32] 스피드 실속 범위 한 줄: "스피드 Lv50  107~169 +스카프 253".
+ * min(무투자 중립) ~ max(풀투자 상향), 그리고 스카프(×1.5) 값을 별도 강조색으로.
+ */
+@Composable
+private fun SpeedRangeRow(sr: OverlayCardData.SpeedRangeLine) {
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp.scaled())) {
+        SectionLabel(stringResource(R.string.overlay_section_speed))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${sr.min}~${sr.max}",
+                color = ChipTextColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold,
+                maxLines = 1, softWrap = false,
+            )
+            Spacer(Modifier.width(6.dp.scaled()))
+            Text(
+                stringResource(R.string.overlay_speed_scarf) + " ${sr.scarf}",
+                color = AccentColor, fontSize = 11.sp.scaled(),
+                maxLines = 1, softWrap = false,
+            )
+        }
+    }
+}
+
+/**
+ * [P32] 예상 팀원 칩 목록(가로 나열, 최대 4). 각 칩은 첫 타입 색 배경 + 이름.
+ * key 가 있으면 탭 시 [onPinTeammate](검색-핀). 없으면(영문뿐 join 불가) 비활성 회색 칩.
+ */
+@Composable
+private fun TeammatesFlow(
+    teammates: List<OverlayCardData.TeammateChip>,
+    onPinTeammate: (key: String) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp.scaled())) {
+        teammates.take(4).forEach { tm ->
+            val bg = parseColorOrNull(tm.colorHex) ?: Color(0xFF_666666)
+            val clickMod = if (tm.key != null) Modifier.clickable { onPinTeammate(tm.key) } else Modifier
+            Text(
+                text = tm.label,
+                color = Color.White,
+                fontSize = 11.sp.scaled(),
+                fontWeight = FontWeight.Medium,
+                maxLines = 1, softWrap = false,
+                modifier = Modifier
+                    .background(bg, RoundedCornerShape(6.dp.scaled()))
+                    .then(clickMod)
+                    .padding(horizontal = 7.dp.scaled(), vertical = 2.dp.scaled()),
+            )
         }
     }
 }
@@ -1051,6 +1138,50 @@ private fun TypeChipView(chip: OverlayCardData.TypeChip) {
         modifier = Modifier
             .background(bg, RoundedCornerShape(6.dp.scaled()))
             .padding(horizontal = 8.dp.scaled(), vertical = 2.dp.scaled()),
+    )
+}
+
+/**
+ * [P32] ×4 약점 경고 배지(CARD 승격). 타입칩 옆 작은 배지: "×4 얼음"(+타입 여럿이면 나열).
+ * 붉은 경고 배경으로 눈에 확 띄게. 타입 이름은 표시 언어([weak4] 칩 라벨).
+ */
+@Composable
+private fun Weak4Badge(weak4: List<OverlayCardData.TypeChip>) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp.scaled()),
+        modifier = Modifier
+            .background(Color(0xFF_C62828), RoundedCornerShape(6.dp.scaled()))
+            .padding(horizontal = 6.dp.scaled(), vertical = 2.dp.scaled()),
+    ) {
+        Text(
+            "×4",
+            color = Color.White, fontSize = 11.sp.scaled(), fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false,
+        )
+        Text(
+            weak4.joinToString(" ") { it.label },
+            color = Color.White, fontSize = 11.sp.scaled(), fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
+        )
+    }
+}
+
+/**
+ * [P32] CARD 단계 아이템 사용률 한 줄(상위 1~2개). "아이템: Life Orb 57% · Focus Sash 12%".
+ * 아이템 이름은 9언어 사전이 없어 영문 원문. 카드 높이 증가 최소화를 위해 한 줄로, 넘치면 잘림(...).
+ */
+@Composable
+private fun ItemLineInline(items: List<OverlayCardData.MoveLine>) {
+    val text = stringResource(R.string.overlay_item_prefix) +
+        items.joinToString(" · ") { item ->
+            item.pct?.let { "${item.label} ${it.toInt()}%" } ?: item.label
+        }
+    Text(
+        text,
+        color = SubTextColor, fontSize = 12.sp.scaled(),
+        maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
     )
 }
 
