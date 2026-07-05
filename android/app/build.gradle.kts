@@ -23,7 +23,8 @@ android {
         // 배포 시 GitHub/Cloudflare Pages 의 dist/ URL 로 교체(끝에 / 포함).
         //   예: "https://<user>.github.io/<repo>/data/dist/"
         // -PdataUpdateBaseUrl=... 로 오버라이드 가능(E2E 로컬 서버 테스트용: http://10.0.2.2:PORT/).
-        val dataUpdateBaseUrl = (project.findProperty("dataUpdateBaseUrl") as String?) ?: ""
+        val dataUpdateBaseUrl = (project.findProperty("dataUpdateBaseUrl") as String?)
+            ?: "https://kohana-dev.github.io/pochamps-supporter/data/dist/"
         buildConfigField("String", "DATA_UPDATE_BASE_URL", "\"$dataUpdateBaseUrl\"")
     }
 
