@@ -57,6 +57,19 @@ class OcrFieldTest {
         val expected: List<String>, // 소문자/정규화 비교
     )
 
+    /**
+     * [P22] 웹수집 더블 샘플(en_doubles_*) 전용 ROI — 웹 스크린샷의 이름표 위치는 실기기와 다르므로
+     * P22 실기기 실측으로 교정한 [RoiConfig.DEFAULT_LANDSCAPE_DOUBLES] 를 그대로 쓰지 않고,
+     * 종전 웹수집 기준 좌표(좌 0.57~0.78 / 우 0.78~1.0 / 세로 0.02~0.24)를 명시한다.
+     * 이렇게 E2E 를 default 교정에서 분리해, 실기기 default 를 되돌리지 않고도 웹 샘플 회귀를 유지한다.
+     */
+    private val WEB_DOUBLES_LEGACY = RoiConfig(
+        listOf(
+            RoiRect(left = 0.57, top = 0.02, right = 0.78, bottom = 0.24),
+            RoiRect(left = 0.78, top = 0.02, right = 1.0, bottom = 0.24),
+        ),
+    )
+
     private val cases = listOf(
         Case(
             "field_samples/en_single_hippowdon.jpg", "en",
@@ -68,11 +81,11 @@ class OcrFieldTest {
         ),
         Case(
             "field_samples/en_doubles_typhlosion_charizard.jpg", "en",
-            RoiConfig.DEFAULT_LANDSCAPE_DOUBLES, listOf("typhlosion", "charizard"),
+            WEB_DOUBLES_LEGACY, listOf("typhlosion", "charizard"),
         ),
         Case(
             "field_samples/en_doubles_typhlosion_torkoal.jpg", "en",
-            RoiConfig.DEFAULT_LANDSCAPE_DOUBLES, listOf("typhlosion", "torkoal"),
+            WEB_DOUBLES_LEGACY, listOf("typhlosion", "torkoal"),
         ),
         Case(
             "field_samples/ko_single_gyarados.jpg", "ko",
@@ -219,22 +232,26 @@ class OcrFieldTest {
             ocr.close(); bmp.recycle()
         }
 
-        // (b) 더블 활성 ROI(2밴드)로 더블 샘플 2종 인식.
+        // (b) 더블 활성 ROI(2밴드) 밴드 수 검증 + 웹 더블 샘플 2종 인식.
+        // P22: 활성 default 는 실기기(Galaxy S25+) 실측 좌표라 밴드 수만 검증하고,
+        //   웹수집 샘플의 인식 자체는 웹 UI 위치에 맞춘 WEB_DOUBLES_LEGACY 로 확인한다(분리).
         val doublesCfg = RoiConfig.activeDefault(com.pochamps.supporter.data.BattleFormat.DOUBLES)
         assertTrue("더블 활성 ROI 는 2밴드여야", doublesCfg.rois.size == 2)
+        assertTrue("웹 레거시 더블 ROI 도 2밴드", WEB_DOUBLES_LEGACY.rois.size == 2)
         val dblBmp = loadAsset("field_samples/en_doubles_typhlosion_charizard.jpg")
         var doublesMatched = emptySet<String>()
         if (dblBmp != null) {
             val ocr = OcrEngine("en", Preprocess.NONE)
             warmup(ocr, dblBmp)
             val matched = mutableSetOf<String>()
-            for (cr in cropper.cropAll(dblBmp, doublesCfg)) {
+            // 웹 샘플이므로 웹 UI 위치에 맞춘 레거시 ROI 사용(default 는 실기기 좌표).
+            for (cr in cropper.cropAll(dblBmp, WEB_DOUBLES_LEGACY)) {
                 val lines = runCatching { ocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
                 cr.bitmap.recycle()
                 (repo.matchBest(lines) as? MatchResult.Matched)?.root?.let { matched += it }
             }
             doublesMatched = matched
-            Log.i(TAG, "  (b) doubles bands=${doublesCfg.rois.size} matched=$matched")
+            Log.i(TAG, "  (b) doubles activeBands=${doublesCfg.rois.size} webLegacyBands=${WEB_DOUBLES_LEGACY.rois.size} matched=$matched")
             ocr.close(); dblBmp.recycle()
         }
 

@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.1.7" // 항상 보이는 오버레이 컨트롤 바 — 최소화+검색+보정 (P21)
+        versionCode = 10
+        versionName = "0.1.8" // 실기기(Galaxy S25+) 더블배틀 ROI 기본값 교정 (P22)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

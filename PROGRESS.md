@@ -4,6 +4,53 @@
 
 ---
 
+## P22 — 실기기 기반 더블배틀 ROI 기본값 교정 (v0.1.8) ✅ 완료 (2026-07-05)
+
+> **실기기 리포트 대응**: 실사용자(Galaxy S25+, 19.5:9)가 **실제 안드로이드 포챔스 더블배틀 스크린샷**을 제공.
+> 상대 이름표 2개는 우상단에 나란히 있는데, 종전 `DEFAULT_LANDSCAPE_DOUBLES`(웹수집 기준)의 우 밴드가
+> **0.78 에서 시작해 파이어로 왼쪽 글자를 자르고** 1.0 까지 가서 **커맨드 버튼 영역**을 물었다.
+> DB 이름 매칭은 정상(나인테일→ninetales, 파이어로→talonflame) — **순수 ROI 조준 문제**라 좌표만 교정.
+
+### 실측 근거 (Galaxy S25+ 19.5:9 실기기 더블배틀 스크린샷, 화면 비율)
+| 플레이트          | 실측 가로     | 실측 세로     |
+|-------------------|--------------|--------------|
+| 좌(예 "나인테일") | 0.60 ~ 0.75  | 0.03 ~ 0.16  |
+| 우(예 "파이어로") | 0.765 ~ 0.925| 0.03 ~ 0.16  |
+
+### 교정 전/후 좌표 (`RoiConfig.DEFAULT_LANDSCAPE_DOUBLES`)
+| 밴드 | 전(웹기준, ~P21)              | 후(실기기 P22)                  |
+|------|-------------------------------|---------------------------------|
+| 좌   | 0.57, 0.02, 0.78, 0.24        | **0.585, 0.02, 0.758, 0.185**   |
+| 우   | **0.78, 0.02, 1.0, 0.24**     | **0.758, 0.02, 0.940, 0.185**   |
+
+→ 우 밴드가 파이어로 왼쪽 글자를 포함하도록 시작점을 0.78→0.758 로 당기고, 커맨드 버튼을 피해 끝을 1.0→0.940 으로 줄임. 실측 세로 0.03~0.16 에 여백을 더해 세로밴드도 0.24→0.185 로 조임.
+
+### 싱글은 이번 범위 밖
+- 실기기 싱글 스크린샷이 아직 없어 `DEFAULT_LANDSCAPE_SINGLE` 은 웹수집 기준 유지. KDoc 에 "싱글은 실기기 스크린샷 확보 후 P22 방식으로 교정 예정" 명시.
+
+### 테스트 분리/갱신 (default 교정을 되돌리지 않고 실데이터 기준 정리)
+- **`RoiConfigTest`**: `K2실측_더블_우상단밀집_배치` → `P22실측_더블_우상단밀집_배치` 로 갱신. 종전 `우 right≥0.98` 단정을 실기기 실측 반영(`우 right<0.98`, `0.90~0.96`, 좌/우 인접 비중첩, 세로 `bottom≤0.20`)으로 교체. **총 218/218 유지**(테스트 수 불변, 기대값만 실데이터로 정리).
+- **`OcrFieldTest`(E2E)**: 웹수집 더블 샘플(`en_doubles_*`)은 게임 UI 위치가 실기기와 달라 **샘플 전용 `WEB_DOUBLES_LEGACY` ROI**(종전 웹 좌표)를 명시해 default 교정과 **분리**. P20 형식전환 케이스도 활성 default 는 **밴드 수만 검증**하고 웹 샘플 인식은 레거시 ROI 로 확인.
+
+### 에뮬레이터 회귀 검증 (AVD `Kohana_QA_API_35`, `OcrFieldTest` 5 tests)
+- **웹 더블 샘플 여전히 정확**: `en_doubles_typhlosion_charizard` → typhlosion/charizard **editDist 0 OK**, `en_doubles_typhlosion_torkoal` → typhlosion/torkoal **editDist 0 OK**. **ROI 총 9 / 성공 9 (100%)**.
+- **P20 형식전환**: doubles matched=[typhlosion, charizard](2종), single=2, 형식별 사용률 차이=true. **5 tests PASS**.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 218/218, failures 0**.
+- `:app:assembleRelease`(R8) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 10 / versionName 0.1.8**.
+
+### 코드 변경 요약
+- `capture/RoiConfig.kt`: `DEFAULT_LANDSCAPE_DOUBLES` 좌표 교정 + KDoc(실기기 실측 근거·좌표표·히스토리). `DEFAULT_LANDSCAPE_SINGLE` KDoc 에 P22 범위 주석.
+- `RoiConfigTest.kt`: 더블 배치 테스트를 P22 실측 기준으로 갱신.
+- `OcrFieldTest.kt`: `WEB_DOUBLES_LEGACY` 도입, 웹 더블 케이스/P20 을 그것으로 분리.
+- `build.gradle.kts`: versionCode 10 / 0.1.8.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기 실 대전에서 교정된 더블 ROI 가 실제로 두 이름표를 정확히 크롭하는지 최종 확인(에뮬은 웹 샘플로 회귀만 보증). 싱글 실기기 스크린샷 확보 후 동일 방식 교정. P21 이하 잔여 항목 동일.
+
+---
+
 ## P21 — 항상 보이는 오버레이 컨트롤 바 (최소화 + 검색 + 보정, v0.1.7) ✅ 완료 (2026-07-05)
 
 > **실기기 리포트 대응**: 숨기기/펼치기(3단계 CardStage)·🔍수동검색이 전부 **"카드" 위에**만 있어,

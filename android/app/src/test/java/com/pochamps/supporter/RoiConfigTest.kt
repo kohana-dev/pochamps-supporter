@@ -52,15 +52,21 @@ class RoiConfigTest {
     }
 
     @Test
-    fun K2실측_더블_우상단밀집_배치() {
-        // P8 K2 실측: 상대 이름표 2개는 화면 "우측 절반"에 나란히(좌/우 대칭 아님).
+    fun P22실측_더블_우상단밀집_배치() {
+        // P8 K2: 상대 이름표 2개는 화면 "우측 절반"에 나란히(좌/우 대칭 아님).
+        // P22 실기기(Galaxy S25+ 19.5:9) 실측 교정: 우 밴드가 1.0 이 아니라 0.940 에서 끝난다
+        // (종전 0.78~1.0 은 파이어로 왼쪽 글자 클리핑 + 커맨드 버튼 포함 → 실기기에서 오조준이었다).
         val cfg = RoiConfig.DEFAULT_LANDSCAPE_DOUBLES
         assertEquals(2, cfg.rois.size)
         // 두 ROI 모두 화면 오른쪽 절반(x>0.5)에서 시작.
         assertTrue("좌플레이트도 우측 절반에서 시작", cfg.rois[0].left >= 0.5)
-        assertTrue("우플레이트는 화면 오른쪽 끝까지", cfg.rois[1].right >= 0.98)
-        // 상단 띠(P12 세로밴드 확장: bottom 0.17→0.24, 장면별 y 편차 흡수. matchBest 가 인접 UI 걸러줌).
-        assertTrue(cfg.rois.all { it.top <= 0.05 && it.bottom <= 0.25 })
+        // 좌/우 플레이트는 인접(경계 공유, 겹치지 않음).
+        assertTrue("좌 right ≤ 우 left(인접, 비중첩)", cfg.rois[0].right <= cfg.rois[1].left)
+        // 우 밴드는 커맨드 버튼을 피해 화면 끝까지 가지 않는다(실기기 실측: right≈0.94).
+        assertTrue("우플레이트는 커맨드 버튼 회피(1.0 미만)", cfg.rois[1].right < 0.98)
+        assertTrue("우플레이트 실측 여백 반영", cfg.rois[1].right in 0.90..0.96)
+        // 상단 띠(실기기 실측 세로 0.03~0.16 → 여백 포함 top 0.02, bottom 0.185).
+        assertTrue(cfg.rois.all { it.top <= 0.05 && it.bottom <= 0.20 })
     }
 
     @Test
