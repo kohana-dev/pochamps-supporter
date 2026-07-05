@@ -4,6 +4,53 @@
 
 ---
 
+## P19 — 표시 언어를 캡처 언어와 분리 + 9개 언어 UI ✅ 완료 (2026-07-05)
+
+### 배경(실기기 리포트)
+언어 개념이 둘인데 하나로 뭉쳐 있었다.
+- **게임 화면 언어(캡처/OCR)**: OCR 이 읽을 언어. 게임이 이름을 어느 언어로 띄우는지에 맞춰야 함(기술적 필수).
+- **앱 표시 언어(UI + 카드 내용)**: 유저가 보고 싶은 언어. 기존엔 없었고 UI 는 ko/en 2개(시스템 로케일 추종), 카드 내용은 captureLang 에 묶여 있었음.
+
+### 기능 1 — 표시 언어 분리
+- **`AppSettings.displayLang` 신규**(9언어 en/ja/ko/de/es/fr/it/zh-cn/zh-tw). 기본값 = 시스템 로케일을 9개 중 가장 가까운 것으로 매핑(없으면 en).
+- **카드 내용(이름/타입/특성/기술)을 displayLang 으로 렌더** — captureLang(OCR/매칭)과 분리. OCR 이 어떤 언어를 읽든 → `matchBest` 가 도감키 확정(언어 무관) → 카드는 **표시 언어**로 정보 표시.
+  - `RecognitionPipeline.lang` = displayLang(카드 조립용). `OcrEngine(language=captureLang)`, ROI/`matchBest` 는 captureLang 경로 유지.
+  - `CaptureService` 의 데모/후보/검색 카드 렌더도 displayLang 로 전환. OCR 엔진만 captureLang.
+- 설정 UI 두 선택 명확 구분: **"앱 표시 언어"** vs **"게임 화면 언어(인식용)"**, 각 설명 문구.
+
+### 기능 2 — 다국어 UI(앱 chrome 9언어)
+- `res/values`(ko), `values-en` 에 더해 **7개 추가**: `values-ja`, `values-de`, `values-es`, `values-fr`, `values-it`, `values-zh-rCN`, `values-zh-rTW`. 각 105개 문자열(키/순서 동일, 검증 완료).
+  - **품질**: ko/ja/en 정확. de/es/fr/it/zh-cn/zh-tw 는 best-effort(각 파일 상단 "원어민 검수 권장" 주석). 도메인 용어(타입/특성/기술)는 카드가 데이터 사전의 정확한 9언어를 쓰므로 UI chrome 은 일반 용어 위주.
+- **인앱 표시 언어 오버라이드**: `LocaleUtils.wrap(base, displayLang)` 로 **MainActivity·CaptureService 의 `attachBaseContext`** 를 래핑 → Compose `stringResource` 와 서비스/오버레이의 `getString`/`resources` 가 모두 표시 언어 로케일로 해석(시스템 로케일 불변). AppCompat 미도입 구조라 per-app locale 대신 base-context Configuration 래핑을 선택.
+- 표시 언어 변경 시 `Activity.recreate()` 로 즉시 반영. 오버레이는 다음 세션(데모/캡처 재탭)부터 새 로케일.
+
+### 신규/변경 코드
+- `data/LocaleUtils.kt`(신규): `toLocale`(중국어 지역코드 포함), `closestSupported`(시스템 로케일→9언어, zh Hant/TW/HK/MO→zh-tw), `defaultDisplayLang`, `wrap`.
+- `data/AppSettings.kt`: `displayLang` 프로퍼티(+ `appContext` 보관), `KEY_DISPLAY_LANG`. `language` 주석을 "캡처 전용"으로 갱신.
+- `ui/MainActivity.kt`: `attachBaseContext` 래핑, 설정 UI 에 표시 언어 선택 추가(변경 시 recreate), 캡처 언어 선택은 기존 재사용.
+- `capture/CaptureService.kt`: `attachBaseContext` 래핑, `displayLang` 필드, 카드/후보/검색 렌더를 displayLang 로, OCR 만 captureLang.
+- `res/values*/strings.xml`: `settings_display_lang_title`/`_desc` 추가, `settings_language_title/_desc` 문구 정정(표시와 분리 명시), 7개 언어 파일 신규.
+- `build.gradle.kts`: **versionCode 8 / versionName 0.1.6**.
+
+### 테스트 (+9, 순수 JVM → 210)
+- `DisplayLangTest`: 시스템 로케일→9언어 매핑(직접 일치/중국어 간체·번체 구분/미지원 en 폴백), `toLocale` 중국어 지역코드·라운드트립, **카드가 넘겨받은 표시 언어로 렌더(캡처 무관)**, 캡처≠표시(게임 ja/표시 ko→카드 한국어) 시뮬레이션, 타입 칩 언어 반영.
+- (Context 필요한 AppSettings 영속/`wrap`/기본값 매핑은 순수 JVM 밖 → 에뮬 실측으로 보증.)
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720, 데모 세션)
+- **(a) 표시=ja, 캡처=ko**: 앱 UI 전체 일본어(온보딩/설정), 두 언어 선택이 "アプリの表示言語"=日本語 / "ゲーム画面の言語(認識用)"=한국어 로 분리 표시. **데모 카드 = 일본어**(ガブリアス, ドラゴン/じめん, 확장 시 とくせい/ドラゴンクロー 89% 등 わざ, 通常/メガ). 캡처가 한국어여도 카드는 일본어임을 입증. (`field_samples/p19/a1~a4`)
+- **(b) 표시 언어 전환**: ja→ko 즉시(recreate) UI·카드 한국어(한카리아스, 드래곤/땅). ko→en 즉시 UI 영어("Game screen language (for recognition)", "Battle format", "Singles/Doubles"). (`field_samples/p19/b1,b2,c1`)
+- **(c) 캡처≠표시**: 표시=ko 일 때 카드가 한국어(한카리아스). 캡처 언어 칩은 UI 로케일과 독립적으로 유지됨을 확인.
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 210/210, failures 0**(기존 201 + P19 9).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 8 / versionName 0.1.6**.
+
+### 번역 품질 메모
+- **정확**: ko(기본), ja, en.
+- **best-effort(원어민 검수 권장)**: de, es, fr, it, zh-cn(简体), zh-tw(繁體). 각 파일 상단 주석에 명시.
+
+---
+
 ## P1 — 스캐폴드 + 데이터 레이어 ✅ 완료 (2026-07-05)
 
 ### 완료 내역

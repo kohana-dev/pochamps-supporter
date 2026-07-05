@@ -55,6 +55,13 @@ import kotlin.concurrent.thread
  */
 class CaptureService : Service() {
 
+    // 오버레이/알림 문자열을 표시 언어(displayLang)로 해석하도록 서비스 base context 를 래핑(P19).
+    // 오버레이 카드·상태 문구·FGS 알림이 모두 유저의 표시 언어로 나온다(시스템 로케일 불변).
+    override fun attachBaseContext(newBase: Context) {
+        val lang = AppSettings(newBase).displayLang
+        super.attachBaseContext(com.pochamps.supporter.data.LocaleUtils.wrap(newBase, lang))
+    }
+
     private var overlay: OverlayRenderer? = null
     private var calibrationOverlay: RoiCalibrationOverlay? = null
     private var projection: MediaProjection? = null
@@ -69,8 +76,18 @@ class CaptureService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** 게임/표시 언어(설정에서 로드, 기본 "ko"). onStartCommand 진입 시 갱신. */
+    /**
+     * 게임 화면 언어(OCR/이름 매칭용, 설정에서 로드, 기본 "ko"). onStartCommand 진입 시 갱신.
+     * OCR 엔진 언어 + 후보/검색 이름 매칭 경로에만 쓴다. 카드 표시엔 [displayLang] 을 쓴다(P19 분리).
+     */
     private var captureLang: String = AppSettings.DEFAULT_LANG
+
+    /**
+     * 앱 표시 언어(카드 내용 렌더용, P19). onStartCommand 진입 시 갱신.
+     * OCR 이 어떤 언어를 읽든 도감번호 확정 후 카드(이름/타입/특성/기술)는 이 언어로 표시한다.
+     * (attachBaseContext 로 이미 이 로케일이 리소스에 적용되어 있어 UI chrome 도 일치.)
+     */
+    private var displayLang: String = AppSettings.DEFAULT_LANG
 
     /**
      * 현재 배틀 형식(P20, 싱글/더블). onStartCommand 진입 시 설정에서 로드하고, 오버레이 빠른 토글로
@@ -133,6 +150,7 @@ class CaptureService : Service() {
 
         // 설정에서 언어/형식 로드(오버레이/파이프라인 조립 전에 확정).
         captureLang = AppSettings(this).language
+        displayLang = AppSettings(this).displayLang
         captureFormat = AppSettings(this).battleFormat
 
         // 1) 오버레이를 **먼저** 띄운다(Android 15 순서 규정).
@@ -242,7 +260,7 @@ class CaptureService : Service() {
     private fun reissueDemoCard() {
         val target = DEMO_CYCLE[(demoIndex - 1).coerceAtLeast(0) % DEMO_CYCLE.size]
         val repo = repository ?: return
-        val card = OverlayCardData.fromRepository(repo, target.key, captureLang, captureFormat) ?: return
+        val card = OverlayCardData.fromRepository(repo, target.key, displayLang, captureFormat) ?: return
         overlay?.updateSlot(
             0, card,
             SlotUiMeta(
@@ -259,7 +277,7 @@ class CaptureService : Service() {
      */
     private fun demoPinSlot(slot: Int, key: String) {
         val repo = repository ?: return
-        val card = OverlayCardData.fromRepository(repo, key, captureLang, captureFormat) ?: return
+        val card = OverlayCardData.fromRepository(repo, key, displayLang, captureFormat) ?: return
         overlay?.updateSlot(slot, card, SlotUiMeta(root = null, hasMoreCandidates = false, pinned = true))
     }
 
@@ -271,13 +289,13 @@ class CaptureService : Service() {
         return cands.map { c ->
             val chips = c.types.map { slug ->
                 OverlayCardData.TypeChip(
-                    label = repo.typeName(slug, captureLang) ?: slug,
+                    label = repo.typeName(slug, displayLang) ?: slug,
                     colorHex = repo.typeColor(slug),
                 )
             }
             CandidateChoice(
                 key = c.key,
-                name = c.names.get(captureLang) ?: c.key,
+                name = c.names.get(displayLang) ?: c.key,
                 typeChips = chips,
                 usagePct = c.usage_rank,
                 recommended = (c.usage_rank ?: -1.0) == topRank && topRank >= 0.0,
@@ -288,7 +306,8 @@ class CaptureService : Service() {
     /** 수동 검색 시트용: 이름 부분일치. */
     private fun searchHits(query: String): List<SearchChoice> {
         val repo = repository ?: return emptyList()
-        return repo.searchByName(query, captureLang, limit = 20)
+        // 수동 검색은 유저가 표시 언어로 입력·열람하므로 표시 언어 이름으로 매칭/표시(P19).
+        return repo.searchByName(query, displayLang, limit = 20)
             .map { SearchChoice(it.key, it.name) }
     }
 
@@ -310,7 +329,7 @@ class CaptureService : Service() {
             val card = OverlayCardData.fromRepository(
                 repo = repo,
                 key = target.key,
-                lang = captureLang,
+                lang = displayLang, // 데모 카드도 표시 언어로 렌더(P19).
                 format = captureFormat,
             ) ?: return@thread
             mainHandler.post {
@@ -416,7 +435,8 @@ class CaptureService : Service() {
                 // ROI/사용률 모두 현재 형식을 따른다(P20). 프레임/갱신마다 최신 captureFormat 을 읽어
                 // 오버레이 빠른 토글이 다음 프레임부터 즉시 반영된다(파이프라인 재구성 불필요).
                 roiConfigProvider = { roiStore.effective(captureFormat) },
-                lang = captureLang,
+                // 카드 데이터는 표시 언어(displayLang)로 조립(P19). OCR/매칭은 captureLang(위 ocr/roi).
+                lang = displayLang,
                 formatProvider = { captureFormat },
                 onCardUpdate = { slot, card, meta ->
                     // 인식 성공 시각 기록(미인식 안내 배너 판정용).
@@ -672,7 +692,7 @@ class CaptureService : Service() {
         private data class DemoTarget(val key: String, val root: String?)
 
         /**
-         * 데모 버튼 연타 시 순환할 대상(더블 포맷). 언어는 설정값(captureLang).
+         * 데모 버튼 연타 시 순환할 대상(더블 포맷). 카드 표시 언어는 설정값(displayLang).
          *  - garchomp(한카리아스): 메가 토글 검증.
          *  - arcanine(윈디): 후보 시트 검증(root "arcanine" → 윈디/히스이윈디).
          */

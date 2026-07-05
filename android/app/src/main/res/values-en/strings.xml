@@ -31,8 +31,12 @@
 
     <!-- ===== Settings ===== -->
     <string name="settings_title">Settings</string>
-    <string name="settings_language_title">Game language</string>
-    <string name="settings_language_desc">The language of opponent names shown in the game. The OCR recognizer and display language follow this value.\nChanges apply from the next run.</string>
+    <!-- ===== Display language (P19) — app UI + card content ===== -->
+    <string name="settings_display_lang_title">App display language</string>
+    <string name="settings_display_lang_desc">The language for the app UI and info cards (Pokémon name, type, ability, moves). You can pick this independently of the game screen language. Changes apply immediately.</string>
+    <!-- ===== Game screen language (capture/OCR) — separate from display ===== -->
+    <string name="settings_language_title">Game screen language (for recognition)</string>
+    <string name="settings_language_desc">The language of opponent names shown in the game. The OCR recognizer follows this value (separate from the display language). Changes apply from the next run.</string>
     <string name="settings_roi_title">Advanced: recognition region (ROI)</string>
     <string name="settings_roi_desc">The screen region where opponent names are read. If you have a calibrated value, this resets it to the default.</string>
     <string name="settings_roi_reset">Reset ROI to default</string>

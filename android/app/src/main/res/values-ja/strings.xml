@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 日本語(ja)。ko/ja/en は精度重視で翻訳。ポケモン用語(タイプ/とくせい/わざ)はカード側がデータ辞書の正確な9言語を使うため、ここは一般UI用語中心。 -->
+<resources>
+    <string name="app_name">ポケチャンプ サポーター</string>
+
+    <!-- ===== オンボーディング(MainActivity) ===== -->
+    <string name="onboarding_title">ポケチャンプ サポーター</string>
+    <string name="onboarding_intro_title">このアプリの機能</string>
+    <string name="onboarding_intro_body">対戦中、画面に表示された相手ポケモンの名前を読み取り、タイプ・とくせい・主要なわざをゲームの上に重ねて表示します。\n\n• 画面にすでに表示されている情報だけを表示します。\n• ゲームのメモリを読み取ったり自動入力したりしません。</string>
+
+    <!-- ===== 法的注意(K4 EULA 調査) ===== -->
+    <string name="onboarding_legal_title">ご利用の前に</string>
+    <string name="onboarding_legal_body">本アプリは画面にすでに表示されている相手情報のみを表示し、ゲームメモリの読み取り・入力の自動化・ゲームの改変は一切行いません。ただし、株式会社ポケモン(TPCi)の利用規約・大会規定は非公認のサードパーティ製ソフトウェアを広く制限しており、特に公式ランクマッチや Play! Pokémon(VGC)などの公認大会で補助ツールを使用すると失格になる場合があります。\n\n• カジュアル・練習用途のみでご使用ください。\n• 公式・大会の対戦ではアプリを終了してください。\n• アカウント処分のリスクはご自身の責任となります。</string>
+
+    <string name="onboarding_step_overlay">1. オーバーレイ権限</string>
+    <string name="onboarding_overlay_granted">許可済み ✓</string>
+    <string name="onboarding_overlay_needed">ゲームの上に情報カードを表示するには「他のアプリの上に重ねて表示」の権限が必要です。</string>
+    <string name="onboarding_overlay_open">権限設定を開く</string>
+    <string name="onboarding_overlay_recheck">許可しました(再確認)</string>
+
+    <string name="onboarding_step_game">2. ゲーム設定</string>
+    <string name="onboarding_game_title">バトル名の表示をオンに</string>
+    <string name="onboarding_game_body">ポケチャンプ → 設定 →「Display Battle Names(バトル名の表示)」をオンにしてください。\n相手の名前テキストが画面に表示されないと認識できません。</string>
+
+    <string name="onboarding_step_run">3. 実行</string>
+    <string name="onboarding_start">開始(画面キャプチャ)</string>
+    <string name="onboarding_need_overlay_first">先にオーバーレイ権限を許可してください。</string>
+    <string name="onboarding_demo">デモカード(キャプチャなし)</string>
+    <string name="onboarding_running_title">実行中</string>
+    <string name="onboarding_running_body">オーバーレイがゲームの上に表示されています。\nステータスバーに「キャプチャ中」の通知が表示されます。</string>
+    <string name="onboarding_stop">停止</string>
+
+    <!-- ===== 設定 ===== -->
+    <string name="settings_title">設定</string>
+    <string name="settings_display_lang_title">アプリの表示言語</string>
+    <string name="settings_display_lang_desc">アプリ画面と情報カード(ポケモンの名前・タイプ・とくせい・わざ)を表示する言語です。ゲーム画面の言語とは別に選べます。変更すると即座に反映されます。</string>
+    <string name="settings_language_title">ゲーム画面の言語(認識用)</string>
+    <string name="settings_language_desc">ゲーム画面に表示される相手の名前の言語です。OCR 認識をこの言語に合わせます(表示言語とは別)。変更は次回の実行から反映されます。</string>
+    <string name="settings_roi_title">詳細設定:認識領域(ROI)</string>
+    <string name="settings_roi_desc">相手の名前を読み取る画面領域です。調整した値がある場合は初期値に戻します。</string>
+    <string name="settings_roi_reset">ROI を初期値にリセット</string>
+    <string name="settings_roi_reset_done">初期値に戻しました ✓</string>
+    <string name="settings_roi_calibrate">名前領域を調整(画面上で直接)</string>
+    <string name="settings_roi_calibrate_need_overlay">調整画面をゲームの上に表示するにはオーバーレイ権限が必要です。</string>
+
+    <!-- ===== オーバーレイカードのサイズ(P16) ===== -->
+    <string name="settings_scale_title">オーバーレイカードのサイズ</string>
+    <string name="settings_scale_desc">ゲームの上に表示される情報カードのサイズです。端末で大きすぎ・小さすぎる場合は調整してください。変更は即座に反映されます。</string>
+
+    <!-- ===== バトル形式 シングル/ダブル(P20) ===== -->
+    <string name="settings_format_title">バトル形式</string>
+    <string name="settings_format_desc">シングル/ダブルに応じて、認識領域(シングル1つ/ダブル2つ)とわざの使用率(シングル対ダブルの環境)が切り替わります。オーバーレイのクイック切替で対戦ごとに変更できます。</string>
+    <string name="format_single">シングル</string>
+    <string name="format_doubles">ダブル</string>
+
+    <!-- ===== 診断モード(P14 フィールドテスト支援) ===== -->
+    <string name="settings_diag_title">診断モード</string>
+    <string name="settings_diag_desc">認識できないときに原因をすぐ表示します。最後の OCR 原文・マッチ結果・認識時刻・OCR 頻度をオーバーレイに表示します。次回の実行から反映されます。</string>
+    <string name="settings_diag_on">診断ストリップ表示:オン</string>
+    <string name="settings_diag_off">診断ストリップ表示:オフ</string>
+
+    <!-- ===== ROI 調整オーバーレイ(P14) ===== -->
+    <string name="calib_hint">相手の名前プレートに枠を合わせてください。内側をドラッグで移動、角をドラッグでサイズ変更。</string>
+    <string name="calib_single">シングル(1つ)</string>
+    <string name="calib_doubles">ダブル(2つ)</string>
+    <string name="calib_reset">リセット</string>
+    <string name="calib_save">保存</string>
+    <string name="calib_close">閉じる</string>
+
+    <!-- ===== 診断ストリップ(オーバーレイ) ===== -->
+    <string name="diag_title">診断</string>
+
+    <!-- ===== データ更新(P13) ===== -->
+    <string name="settings_data_title">ポケモンデータの更新</string>
+    <string name="settings_data_desc">レギュレーションや環境が変わったら最新データをダウンロードします。内蔵データでもオフラインで動作します。</string>
+    <string name="settings_data_version_bundled">現在:内蔵データ</string>
+    <string name="settings_data_version_downloaded">現在:ダウンロード版(バージョン %1$s)</string>
+    <string name="settings_data_update_button">データを更新</string>
+    <string name="settings_data_checking">確認中…</string>
+    <string name="settings_data_disabled">このビルドはリモート更新が設定されていません(内蔵データを使用)。</string>
+    <string name="settings_data_uptodate">すでに最新です(バージョン %1$s)。</string>
+    <string name="settings_data_updated">更新完了:バージョン %1$s。次回の開始から反映されます。</string>
+    <string name="settings_data_fail_network">ネットワークエラーで更新できませんでした。内蔵データを維持します。</string>
+    <string name="settings_data_fail_manifest">サーバーデータの形式エラー。内蔵データを維持します。</string>
+    <string name="settings_data_fail_schema">アプリの更新が必要なデータバージョンです。</string>
+    <string name="settings_data_fail_corrupt">データ検証に失敗(破損)。内蔵データを維持します。</string>
+
+    <!-- ===== 通知(FGS) ===== -->
+    <string name="notif_channel_name">画面キャプチャ</string>
+    <string name="notif_channel_desc">ポケチャンプ サポーターが画面情報を読み取っている間に表示されます。</string>
+    <string name="notif_title">ポケチャンプ サポーター 実行中</string>
+    <string name="notif_text">画面に表示された相手ポケモンの情報を表示します。</string>
+    <string name="notif_action_exit">終了</string>
+
+    <!-- ===== オーバーレイカード ===== -->
+    <string name="overlay_ability_prefix">とくせい: </string>
+    <string name="overlay_more_detail">詳細 ▸(種族値・相性)</string>
+    <string name="overlay_change_candidate">どっち? 変更 ▸</string>
+    <string name="overlay_mega_base">通常</string>
+    <string name="overlay_mega_badge">メガ</string>
+    <string name="overlay_pin_release">📌 固定解除</string>
+    <string name="overlay_exit_x">✕</string>
+    <string name="overlay_recognition_fail">認識できません 🔍</string>
+    <string name="overlay_tap_to_search">タップして検索</string>
+    <string name="overlay_manual_search">🔍</string>
+    <string name="overlay_manual_search_desc">手動で指定</string>
+    <string name="overlay_force_rescan">↻</string>
+    <string name="overlay_force_rescan_desc">再認識</string>
+    <string name="overlay_expand">展開</string>
+    <string name="overlay_collapse">折りたたむ</string>
+    <string name="overlay_section_stats">種族値</string>
+    <string name="overlay_section_total">合計</string>
+    <string name="overlay_section_matchup">防御相性</string>
+    <string name="overlay_section_moves">わざ(使用率順)</string>
+    <string name="overlay_dex_prefix">図鑑 #</string>
+    <string name="overlay_matchup_weak4">×4 弱点</string>
+    <string name="overlay_matchup_weak2">×2 弱点</string>
+    <string name="overlay_matchup_resist_quarter">×¼ 半減</string>
+    <string name="overlay_matchup_resist_half">×½ 半減</string>
+    <string name="overlay_matchup_immune">無効</string>
+
+    <!-- キャプチャ中断/未認識の案内 -->
+    <string name="overlay_capture_stopped_title">キャプチャが中断されました</string>
+    <string name="overlay_capture_stopped_body">画面がロックされたか、キャプチャが中断されました。\n再開するには画面の同意が必要です。</string>
+    <string name="overlay_capture_restart">▶ 再開</string>
+    <string name="overlay_battlenames_hint">名前が表示されませんか? ゲーム設定で「バトル名の表示」をオンにしてください。</string>
+
+    <!-- キャプチャ状態の案内(K1 自動診断, P17) -->
+    <string name="overlay_health_black_title">画面キャプチャがブロックされています</string>
+    <string name="overlay_health_black_body">このゲームは画面キャプチャをブロックしているようです(黒い画面)。ここではオーバーレイを使用できません。</string>
+    <string name="overlay_health_noframes_title">画面フレームがありません</string>
+    <string name="overlay_health_noframes_body">画面フレームを受け取れませんでした。キャプチャ権限を確認して再開してください。</string>
+
+    <!-- ===== 候補/検索シート ===== -->
+    <string name="sheet_candidate_title">どのポケモンですか?</string>
+    <string name="sheet_search_title">名前で検索</string>
+    <string name="sheet_search_hint">ポケモンの名前を入力…</string>
+    <string name="sheet_recommended">おすすめ</string>
+    <string name="sheet_close">閉じる</string>
+</resources>

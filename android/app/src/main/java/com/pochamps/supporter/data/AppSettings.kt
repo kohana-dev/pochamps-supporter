@@ -12,15 +12,39 @@ import com.pochamps.supporter.overlay.OverlayScale
  */
 class AppSettings(context: Context) {
 
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // 표시 언어 기본값 계산(시스템 로케일 조회) 시 리소스 접근이 필요해 앱 컨텍스트를 보관한다.
+    // (SharedPreferences 는 프로세스 공용이라 앱 컨텍스트로 열어도 동일.)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** 게임/표시 언어 코드(SUPPORTED_LANGUAGES). 기본 "ko". */
+    /**
+     * 게임 화면 언어(캡처/OCR 용, P19 이전엔 "언어" 단일값).
+     * OCR 이 읽을 언어 + 이름 매칭 경로에 쓰인다. 표시 언어([displayLang])와는 별개.
+     * 기본 "ko".
+     */
     var language: String
         get() = prefs.getString(KEY_LANG, DEFAULT_LANG)
             ?.takeIf { it in SUPPORTED_LANGUAGES } ?: DEFAULT_LANG
         set(value) {
             val v = if (value in SUPPORTED_LANGUAGES) value else DEFAULT_LANG
             prefs.edit().putString(KEY_LANG, v).apply()
+        }
+
+    /**
+     * 앱 표시 언어(UI chrome + 카드 내용, P19 신규).
+     * 캡처 언어([language])와 분리 — OCR 이 어떤 언어를 읽든 도감번호가 확정되면
+     * 카드는 이 언어로 정보(이름/타입/특성/기술)를 표시하고, 앱 UI 도 이 로케일로 렌더한다.
+     *
+     * 저장값이 없으면(최초 실행) 시스템 로케일을 9개 지원 언어 중 가장 가까운 것으로 매핑해
+     * 기본값으로 삼는다(없으면 en). [displayLangOrNull] 은 매핑 없이 저장 여부만 본다.
+     */
+    var displayLang: String
+        get() = prefs.getString(KEY_DISPLAY_LANG, null)
+            ?.takeIf { it in SUPPORTED_LANGUAGES }
+            ?: LocaleUtils.defaultDisplayLang(appContext)
+        set(value) {
+            val v = if (value in SUPPORTED_LANGUAGES) value else "en"
+            prefs.edit().putString(KEY_DISPLAY_LANG, v).apply()
         }
 
     /**
@@ -59,6 +83,7 @@ class AppSettings(context: Context) {
         const val DEFAULT_LANG = "ko"
         private const val PREFS_NAME = "app_settings"
         private const val KEY_LANG = "capture_lang"
+        private const val KEY_DISPLAY_LANG = "display_lang"
         private const val KEY_DIAG = "diagnostics_enabled"
         private const val KEY_SCALE = "overlay_scale"
         private const val KEY_FORMAT = "battle_format"

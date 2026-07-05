@@ -50,6 +50,7 @@ import com.pochamps.supporter.R
 import com.pochamps.supporter.capture.PrefsRoiConfigStore
 import com.pochamps.supporter.data.AppSettings
 import com.pochamps.supporter.data.DbUpdateManager
+import com.pochamps.supporter.data.LocaleUtils
 import kotlinx.coroutines.launch
 
 /**
@@ -66,6 +67,13 @@ import kotlinx.coroutines.launch
  * onStartCommand 안에서 "오버레이 먼저 → startForeground" 순으로 처리한다(2장 규정).
  */
 class MainActivity : ComponentActivity() {
+
+    // 표시 언어(displayLang) 로케일을 이 액티비티의 base context 에 적용(P19).
+    // Compose stringResource / 모든 리소스 조회가 표시 언어로 해석된다(시스템 로케일 불변).
+    override fun attachBaseContext(newBase: Context) {
+        val lang = AppSettings(newBase).displayLang
+        super.attachBaseContext(LocaleUtils.wrap(newBase, lang))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -255,11 +263,40 @@ private fun OnboardingScreen() {
 private fun SettingsSection() {
     val context = LocalContext.current
     val settings = remember { AppSettings(context) }
-    var lang by remember { mutableStateOf(settings.language) }
+    var displayLang by remember { mutableStateOf(settings.displayLang) }
+    var captureLang by remember { mutableStateOf(settings.language) }
     var roiResetDone by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // (A) 앱 표시 언어(P19) — UI + 카드 내용. 변경 시 액티비티를 재생성해 새 로케일을 즉시 반영.
+            Text(stringResource(R.string.settings_display_lang_title), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.settings_display_lang_desc),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppSettings.LANGUAGE_LABELS.forEach { (code, label) ->
+                    FilterChip(
+                        selected = displayLang == code,
+                        onClick = {
+                            if (code != displayLang) {
+                                settings.displayLang = code
+                                displayLang = code
+                                // 새 표시 언어 로케일을 attachBaseContext 로 다시 적용하기 위해 재생성.
+                                (context as? android.app.Activity)?.recreate()
+                            }
+                        },
+                        label = { Text(label) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // (B) 게임 화면 언어(캡처/OCR 용) — 표시 언어와 분리. OCR 이 읽을 언어에 맞춘다.
             Text(stringResource(R.string.settings_language_title), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(4.dp))
             Text(
@@ -270,10 +307,10 @@ private fun SettingsSection() {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppSettings.LANGUAGE_LABELS.forEach { (code, label) ->
                     FilterChip(
-                        selected = lang == code,
+                        selected = captureLang == code,
                         onClick = {
                             settings.language = code
-                            lang = code
+                            captureLang = code
                         },
                         label = { Text(label) },
                     )

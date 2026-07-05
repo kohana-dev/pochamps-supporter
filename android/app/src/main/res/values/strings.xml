@@ -31,8 +31,12 @@
 
     <!-- ===== 설정 섹션 ===== -->
     <string name="settings_title">설정</string>
-    <string name="settings_language_title">게임 언어</string>
-    <string name="settings_language_desc">게임 화면에 뜨는 상대 이름의 언어. OCR 인식기와 표시 언어가 이 값으로 맞춰집니다.\n변경은 다음 실행부터 적용됩니다.</string>
+    <!-- ===== 표시 언어(P19) — 앱 UI + 카드 내용 ===== -->
+    <string name="settings_display_lang_title">앱 표시 언어</string>
+    <string name="settings_display_lang_desc">앱 화면과 정보 카드(포켓몬 이름·타입·특성·기술)를 표시할 언어입니다. 게임 화면 언어와 무관하게 선택할 수 있어요. 바꾸면 바로 적용됩니다.</string>
+    <!-- ===== 게임 화면 언어(캡처/OCR) — 표시 언어와 분리 ===== -->
+    <string name="settings_language_title">게임 화면 언어 (인식용)</string>
+    <string name="settings_language_desc">게임 화면에 뜨는 상대 이름의 언어입니다. OCR 인식기를 이 언어에 맞춥니다(표시 언어와 별개). 변경은 다음 실행부터 적용됩니다.</string>
     <string name="settings_roi_title">고급: 인식 영역(ROI)</string>
     <string name="settings_roi_desc">상대 이름을 읽는 화면 영역입니다. 실기기 화면에 맞춰 보정한 값이 있으면 기본값으로 되돌립니다.</string>
     <string name="settings_roi_reset">ROI 기본값으로 리셋</string>
