@@ -2,7 +2,10 @@ package com.pochamps.supporter
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.util.Log
+import java.io.File
+import java.io.FileOutputStream
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.pochamps.supporter.capture.RoiConfig
@@ -270,6 +273,131 @@ class OcrFieldTest {
         assertTrue("더블 샘플 2밴드로 2종 인식", doublesMatched.size >= 2)
         assertTrue("garchomp 주요기술이 형식별로 달라야(싱글 vs 더블 메타)", dblMoves != sglMoves && dblMoves.isNotEmpty() && sglMoves.isNotEmpty())
         Log.i(TAG, "===== P20 실측 완료: single=$singleOk doubles=${doublesMatched.size} 사용률차이=${dblMoves != sglMoves} =====")
+    }
+
+    /**
+     * [P29] 실사용자 스크린샷(Galaxy S25+ 더블배틀, 상대=나인테일/파이어로) OCR 실진단.
+     *
+     * "OCR 이 빈텍스트만 나온다"는 실사용자 리포트를 앱의 실제 파이프라인으로 재현/판정한다.
+     *  - 대상: user_s25_double.jpeg (1404x648, 흰글자 + 분홍배경 이름표).
+     *  - ROI: [RoiConfig.DEFAULT_LANDSCAPE_DOUBLES] 두 밴드(현재 코드 그대로).
+     *  - 파이프라인: RoiCropper(2x) → OcrEngine("ko") recognizeAllLines → matchBest.
+     *
+     * ## 세 가지 실험
+     *  (1) 원본해상도(v0.1.14 경로): 이미지 그대로 크롭+OCR.
+     *  (2) 0.5 다운스케일(v0.1.13 이전 경로 재현): 전체 이미지를 0.5 축소 후 크롭+2x업스케일+OCR.
+     *  (3) 전처리 변주: NONE / GRAYSCALE_CONTRAST / 추가 업스케일 3x — 어떤 게 이름을 읽게 하는지.
+     *  실패 시 각 크롭을 앱 files 디렉토리에 PNG 로 저장(로컬 확인용).
+     *
+     * 기대: 좌→"나인테일"→ninetales, 우→"파이어로"→talonflame.
+     * 실행: ./gradlew :app:connectedDebugAndroidTest --tests "*.OcrFieldTest.p29*"
+     *       adb logcat -s OcrFieldTest
+     */
+    @Test
+    fun p29_user_s25_double_실진단(): Unit = runBlocking {
+        val asset = "field_samples/user_s25_double.jpeg"
+        val bmp = loadAsset(asset) ?: run {
+            Log.e(TAG, "$asset 로드 실패 — 에셋 복사 확인 필요")
+            assertTrue("에셋 로드 실패: $asset", false)
+            return@runBlocking
+        }
+        val repo: PokedexRepository = AssetsPokedexLoader.load(ctx)
+        val cfg = RoiConfig.DEFAULT_LANDSCAPE_DOUBLES
+        val expectedByRoi = mapOf(0 to "ninetales", 1 to "talonflame")
+        Log.i(TAG, "########## P29 실사용자 스크린샷 OCR 실진단 ##########")
+        Log.i(TAG, "이미지=${bmp.width}x${bmp.height} rois=${cfg.rois.size} 기대=[0→나인테일/ninetales, 1→파이어로/talonflame]")
+
+        // 결과 저장 디렉토리(로컬 확인용).
+        val outDir = File(ctx.filesDir, "p29_crops").apply { mkdirs() }
+
+        // ---- (1) 원본해상도 (v0.1.14 경로) ----
+        Log.i(TAG, "===== (1) 원본해상도 (v0.1.14, downscale=1.0) =====")
+        val ocr = OcrEngine("ko", Preprocess.NONE)
+        warmup(ocr, bmp)
+        val cropper = RoiCropper() // 기본 2x 업스케일
+        var origHits = 0
+        for (cr in cropper.cropAll(bmp, cfg)) {
+            val lines = runCatching { ocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+            val match = repo.matchBest(lines)
+            val root = (match as? MatchResult.Matched)?.root
+            val dist = (match as? MatchResult.Matched)?.editDistance ?: -1
+            val ok = root != null && root == expectedByRoi[cr.roiIndex]
+            if (ok) origHits++
+            saveCrop(cr.bitmap, File(outDir, "orig_roi${cr.roiIndex}.png"))
+            Log.i(TAG, "  ROI${cr.roiIndex} crop=${cr.bitmap.width}x${cr.bitmap.height} lines='${lines.joinToString("|").ifEmpty { "(빈텍스트)" }}' root=${root ?: "-"} d=$dist ${if (ok) "OK" else "MISS"}")
+            cr.bitmap.recycle()
+        }
+        ocr.close()
+        Log.i(TAG, "  → (1) 원본해상도 결과: $origHits/2 매칭")
+
+        // ---- (2) 0.5 다운스케일 (v0.1.13 이전 경로 재현) ----
+        Log.i(TAG, "===== (2) 0.5 다운스케일 재현 (v0.1.13 이전, downscale=0.5) =====")
+        val half = scaleBitmap(bmp, 0.5f)
+        Log.i(TAG, "  다운스케일 이미지=${half.width}x${half.height}")
+        val ocr2 = OcrEngine("ko", Preprocess.NONE)
+        warmup(ocr2, half)
+        var halfHits = 0
+        for (cr in cropper.cropAll(half, cfg)) {
+            val lines = runCatching { ocr2.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+            val match = repo.matchBest(lines)
+            val root = (match as? MatchResult.Matched)?.root
+            val dist = (match as? MatchResult.Matched)?.editDistance ?: -1
+            val ok = root != null && root == expectedByRoi[cr.roiIndex]
+            if (ok) halfHits++
+            saveCrop(cr.bitmap, File(outDir, "half_roi${cr.roiIndex}.png"))
+            Log.i(TAG, "  ROI${cr.roiIndex} crop=${cr.bitmap.width}x${cr.bitmap.height} lines='${lines.joinToString("|").ifEmpty { "(빈텍스트)" }}' root=${root ?: "-"} d=$dist ${if (ok) "OK" else "MISS"}")
+            cr.bitmap.recycle()
+        }
+        ocr2.close()
+        half.recycle()
+        Log.i(TAG, "  → (2) 0.5 다운스케일 결과: $halfHits/2 매칭")
+
+        // ---- (3) 전처리 변주(원본해상도 기준) ----
+        Log.i(TAG, "===== (3) 전처리 변주(원본해상도) =====")
+        // (label, cropper, preprocess)
+        val variants = listOf(
+            Triple("2x/NONE", RoiCropper(2f), Preprocess.NONE),
+            Triple("2x/GRAY_CONTRAST", RoiCropper(2f), Preprocess.GRAYSCALE_CONTRAST),
+            Triple("3x/NONE", RoiCropper(3f), Preprocess.NONE),
+            Triple("3x/GRAY_CONTRAST", RoiCropper(3f), Preprocess.GRAYSCALE_CONTRAST),
+        )
+        for ((vlabel, vcropper, pp) in variants) {
+            val vocr = OcrEngine("ko", pp)
+            warmup(vocr, bmp)
+            var hits = 0
+            val detail = StringBuilder()
+            for (cr in vcropper.cropAll(bmp, cfg)) {
+                val lines = runCatching { vocr.recognizeAllLines(cr.bitmap) }.getOrNull() ?: emptyList()
+                val match = repo.matchBest(lines)
+                val root = (match as? MatchResult.Matched)?.root
+                val ok = root != null && root == expectedByRoi[cr.roiIndex]
+                if (ok) hits++
+                detail.append(" ROI${cr.roiIndex}[lines='${lines.joinToString("|").ifEmpty { "(빈)" }}' root=${root ?: "-"} ${if (ok) "OK" else "MISS"}]")
+                cr.bitmap.recycle()
+            }
+            vocr.close()
+            Log.i(TAG, "  변주=$vlabel → $hits/2 |$detail")
+        }
+        Log.i(TAG, "  크롭 저장 위치: ${outDir.absolutePath}")
+
+        bmp.recycle()
+        Log.i(TAG, "########## P29 판정: 원본해상도 $origHits/2, 0.5다운스케일 $halfHits/2 ##########")
+        // 핵심 판정: 원본해상도(v0.1.14)로 두 이름 다 읽혀야 "해결됨".
+        assertTrue(
+            "P29: 원본해상도로 상대 이름 2종을 읽지 못함(origHits=$origHits). logcat OcrFieldTest 확인.",
+            origHits >= 2,
+        )
+    }
+
+    /** 비트맵을 factor 배로 스케일(0.5=축소, 3=확대). filter=true. */
+    private fun scaleBitmap(src: Bitmap, factor: Float): Bitmap {
+        val m = Matrix().apply { postScale(factor, factor) }
+        return Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+    }
+
+    /** 크롭 비트맵을 PNG 로 저장(로컬 진단용). 실패 무시. */
+    private fun saveCrop(bmp: Bitmap, file: File) {
+        runCatching { FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
     }
 
     private suspend fun runPass(preprocess: Preprocess, label: String) {
