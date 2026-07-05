@@ -98,6 +98,31 @@ class FrameGateTest {
     }
 
     @Test
+    fun 하트비트_정지화면이라도_maxInterval지나면_통과() {
+        // 고착 버그 회귀 방지: 변화가 전혀 없어도 하트비트 주기가 지나면 강제 통과해야 한다.
+        val gate = FrameGate(minIntervalMs = 700, maxIntervalMs = 1500)
+        val sig = IntArray(48) { 100 }
+        assertTrue(gate.shouldProcess(0, sig, nowMs = 0)) // 최초
+        // 같은 화면 계속 — 주기 전엔 통과 안 함.
+        assertFalse(gate.shouldProcess(0, sig.copyOf(), nowMs = 800))
+        // 하트비트 주기(1500) 경과 → 변화 없어도 통과(정지된 새 포켓몬 재확인 가능).
+        assertTrue(gate.shouldProcess(0, sig.copyOf(), nowMs = 1600))
+        // 통과 후 주기 재시작 — 다시 주기 전엔 억제.
+        assertFalse(gate.shouldProcess(0, sig.copyOf(), nowMs = 2000))
+    }
+
+    @Test
+    fun 하트비트_변화즉시통과와_공존() {
+        // 하트비트가 있어도 실제 변화는 (인터벌 지나면) 즉시 통과.
+        val gate = FrameGate(minIntervalMs = 700, maxIntervalMs = 5000, diffThreshold = 0.1)
+        val a = IntArray(48) { 0 }
+        val b = IntArray(48) { 255 }
+        assertTrue(gate.shouldProcess(0, a, nowMs = 0))
+        // 하트비트(5000) 한참 전이지만 변화+인터벌 경과 → 통과.
+        assertTrue(gate.shouldProcess(0, b, nowMs = 800))
+    }
+
+    @Test
     fun reset_후_다시_최초프레임() {
         val gate = FrameGate(minIntervalMs = 0)
         val sig = intArrayOf(9, 9, 9, 9)

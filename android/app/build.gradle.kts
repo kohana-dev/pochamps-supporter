@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.1.1" // 카드 고착 버그픽스(FrameGate 하트비트)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

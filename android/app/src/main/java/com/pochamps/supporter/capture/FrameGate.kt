@@ -15,10 +15,19 @@ package com.pochamps.supporter.capture
  *
  * @param minIntervalMs 연속 트리거 사이 최소 간격(ms). 이름이 계속 흔들려도 초당 트리거 수를 제한.
  * @param diffThreshold 변화로 간주할 최소 diff 비율(0.0~1.0). 다운샘플 셀 중 몇 % 가 바뀌어야 "변화"인지.
+ * @param maxIntervalMs **하트비트 주기**(ms). 화면 변화가 없어도 이 간격이 지나면 강제로 한 번 통과시킨다.
+ *
+ * ## 왜 하트비트가 필요한가 (고착 버그 방지)
+ * FrameGate 는 "변화가 있을 때만" OCR 을 돌린다. 그런데 PipelineDecider 의 저신뢰 전환
+ * 히스테리시스는 **연속 N회 관측**이 있어야 다른 포켓몬으로 카드를 교체한다. 포켓몬이 바뀌면
+ * FrameGate 가 딱 한 번만 트리거되고, 이후 새 이름표는 **정지 화면**이라 다시 트리거되지 않는다.
+ * → 첫 관측이 약매칭이면 2번째 관측이 영원히 오지 않아 **카드가 이전 포켓몬에 영구 고착**된다.
+ * 하트비트는 정지 화면에서도 주기적으로 재스캔을 공급해 이 교착을 깬다(임계값이 놓친 변화도 회수).
  */
 class FrameGate(
     private val minIntervalMs: Long = DEFAULT_MIN_INTERVAL_MS,
     private val diffThreshold: Double = DEFAULT_DIFF_THRESHOLD,
+    private val maxIntervalMs: Long = DEFAULT_MAX_INTERVAL_MS,
 ) {
 
     /** ROI 별 마지막 서명(다운샘플 그레이 값 배열). 없으면 최초 프레임. */
@@ -37,13 +46,17 @@ class FrameGate(
      */
     fun shouldProcess(roiIndex: Int, signature: IntArray, nowMs: Long): Boolean {
         val prev = lastSignatures[roiIndex]
+        val last = lastTriggerAt[roiIndex]
+        val sinceLast = if (last == null) Long.MAX_VALUE else nowMs - last
 
         val changed = prev == null || diffRatio(prev, signature) >= diffThreshold
-        if (!changed) return false
+        // 하트비트: 변화가 없어도 마지막 트리거로부터 maxIntervalMs 지나면 강제 재스캔(고착 방지).
+        val heartbeatDue = sinceLast >= maxIntervalMs
 
-        // 변화가 있어도 최소 인터벌 안이면 억제(스로틀).
-        val last = lastTriggerAt[roiIndex]
-        if (last != null && nowMs - last < minIntervalMs) {
+        if (!changed && !heartbeatDue) return false
+
+        // 변화 기반 트리거는 최소 인터벌 스로틀 적용. (하트비트는 이미 maxInterval≥minInterval 지났으므로 통과.)
+        if (changed && !heartbeatDue && sinceLast < minIntervalMs) {
             // 서명은 갱신해 두어, 다음 프레임에서 "또 변화"로 오판하지 않게 한다.
             lastSignatures[roiIndex] = signature.copyOf()
             return false
@@ -64,6 +77,12 @@ class FrameGate(
     companion object {
         const val DEFAULT_MIN_INTERVAL_MS = 700L
         const val DEFAULT_DIFF_THRESHOLD = 0.10 // 다운샘플 셀의 10% 이상 바뀌면 변화로 간주.
+
+        /**
+         * 하트비트 주기(ms). 정지 화면에서도 이 간격마다 강제 재스캔 → 저신뢰 전환 확정/놓친 변화 회수.
+         * ROI 당 ~0.67회/s 기저 OCR(실측 예산 ~1회/s 내). 히스테리시스 확정 지연 최대 ≈ 이 값.
+         */
+        const val DEFAULT_MAX_INTERVAL_MS = 1500L
 
         /**
          * 두 그레이 서명의 diff 비율(0.0~1.0). 셀 값 차가 [tolerance] 초과인 셀의 비율.
