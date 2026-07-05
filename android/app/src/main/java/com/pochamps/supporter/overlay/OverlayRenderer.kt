@@ -114,6 +114,11 @@ class OverlayRenderer(
      */
     onToggleDiag: (Boolean) -> Unit = {},
     /**
+     * [P30] 모서리 드래그 리사이즈로 카드 스케일이 바뀔 때 호출(연속값). 서비스가
+     * [com.pochamps.supporter.data.AppSettings.overlayScaleContinuous] 로 영속 저장한다. 기본 no-op.
+     */
+    onScaleChanged: (Float) -> Unit = {},
+    /**
      * 최소화 상태 영속 저장소(P21). 컨트롤 바 최소화/복원 시 SharedPreferences 로 상태를 남긴다.
      * 재시작 후에도 최소화 상태가 유지된다. 기본은 인메모리(비영속) — 서비스가 실제 store 주입.
      */
@@ -263,6 +268,9 @@ class OverlayRenderer(
     /** 진단 ON/OFF 토글 콜백(P21). 서비스가 주입(설정 영속 + 스트립 반영). */
     private var onToggleDiag: (Boolean) -> Unit = {}
 
+    /** [P30] 리사이즈 스케일 변경 콜백. 서비스가 주입(overlayScaleContinuous 영속). */
+    private var onScaleChanged: (Float) -> Unit = {}
+
     /**
      * 최소화 상태(P21). true=최소화(작은 핸들만), false=펼침(컨트롤 바+카드).
      * 초기값은 영속 저장소에서 로드 → 재시작 후에도 유지.
@@ -276,7 +284,8 @@ class OverlayRenderer(
         this.onSelectFormat = onSelectFormat
         this.onCalibrate = onCalibrate
         this.onToggleDiag = onToggleDiag
-        scale.value = OverlayScale.snap(initialScale)
+        this.onScaleChanged = onScaleChanged
+        scale.value = OverlayScale.clampCont(initialScale) // P30: 연속값 보존(칩/드래그 공용)
         battleFormat.value = initialFormat
         minimized.value = minimizeStore.load().minimized
     }
@@ -315,7 +324,8 @@ class OverlayRenderer(
      * 스케일은 밀도 기반이라 창(WRAP_CONTENT) 크기가 자연히 따라가고 잘림이 없다.
      */
     fun setScale(newScale: Float) {
-        scale.value = OverlayScale.snap(newScale)
+        // [P30] 스냅 대신 연속 클램프 — 설정 칩(스냅된 특정값)도, 모서리 드래그(연속값)도 그대로 반영.
+        scale.value = OverlayScale.clampCont(newScale)
     }
 
     fun show() {
@@ -680,6 +690,22 @@ class OverlayRenderer(
         positionStore.save(OverlayPosition(lp.x, lp.y))
     }
 
+    /**
+     * [P30] 모서리 그립 드래그 → 카드 스케일 연속 조절. 기준 픽셀은 화면 짧은 변(회전 무관 일관 감도).
+     * 순수 로직([OverlayScale.applyDragDelta])으로 델타→스케일 클램프를 계산하고 즉시 반영한다.
+     */
+    private fun onResizeDrag(dx: Float, dy: Float) {
+        touchInteraction() // 조작 → 상호작용 모드 자동 복귀 타이머 리셋.
+        val m = context.resources.displayMetrics
+        val refPx = minOf(m.widthPixels, m.heightPixels).toFloat()
+        scale.value = OverlayScale.applyDragDelta(scale.value, dx, dy, refPx)
+    }
+
+    /** [P30] 리사이즈 드래그 종료 → 스케일 연속 영속 저장(서비스 콜백). */
+    private fun persistResize() {
+        onScaleChanged(scale.value)
+    }
+
     /** 화면이 가로 방향인지(측면 flyout 판정). */
     private fun isLandscape(): Boolean {
         val m = context.resources.displayMetrics
@@ -822,8 +848,19 @@ class OverlayRenderer(
             CardStage.EXPANDED -> CardStage.CHIP
         }
         stageBySlot[slot] = next
-        if (next == CardStage.EXPANDED) expandedAtBySlot[slot] = now()
-        else expandedAtBySlot.remove(slot)
+        if (next == CardStage.EXPANDED) {
+            expandedAtBySlot[slot] = now()
+            // [P30] 한 번에 한 카드만 EXPANDED: 다른 슬롯이 EXPANDED 면 CARD 로 자동 축소
+            //  (더블배틀에서 둘 다 세로로 길어져 화면이 잘리는 것 방지).
+            for (other in stageBySlot.keys.toList()) {
+                if (other != slot && stageBySlot[other] == CardStage.EXPANDED) {
+                    stageBySlot[other] = CardStage.CARD
+                    expandedAtBySlot.remove(other)
+                }
+            }
+        } else {
+            expandedAtBySlot.remove(slot)
+        }
     }
 
     /** 확장 패널에서 유저가 조작할 때 자동 축소 타이머를 리셋(무조작 시간 재기). */
@@ -924,8 +961,16 @@ class OverlayRenderer(
         }
 
         val scaleValue by scale
+        // [P30] 확장 2컬럼 패널 안전망(최대 높이 ~85%) 계산용 화면 높이(dp).
+        val screenHeightDp = run {
+            val m = context.resources.displayMetrics
+            if (m.density > 0f) m.heightPixels / m.density else 0f
+        }
 
-        CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
+        CompositionLocalProvider(
+            LocalOverlayScale provides scaleValue,
+            LocalOverlayScreenHeightDp provides screenHeightDp,
+        ) {
             // 측면 flyout 여부: 가로 + 시트 열림 + 방향이 정해짐.
             if (sheetOpen && isLandscape() && sideDir != null) {
                 Row(
@@ -1089,6 +1134,9 @@ class OverlayRenderer(
                     },
                     // 종료 진입점은 주 카드(첫 슬롯)에만 붙인다(× + 그립 오래누르기).
                     onExit = if (slot == primarySlot) ({ onExit() }) else null,
+                    // [P30] 모서리 리사이즈 그립도 주 카드에만. 조작 모드에서만 창이 터치를 받으므로 통과 보존.
+                    onResizeDrag = if (slot == primarySlot) ({ dx, dy -> onResizeDrag(dx, dy) }) else null,
+                    onResizeEnd = if (slot == primarySlot) ({ persistResize() }) else null,
                 )
             }
 
@@ -1168,6 +1216,35 @@ internal object MegaSelection {
         prevKey == null -> -1
         prevKey != newKey -> -1
         else -> currentSel ?: -1
+    }
+}
+
+/**
+ * [P30] "한 번에 한 카드만 EXPANDED" stage 전환 로직(순수 JVM — Android 의존성 없음, 유닛 테스트 가능).
+ *
+ * 한 슬롯을 EXPANDED 로 펼치면 다른 EXPANDED 슬롯은 CARD 로 자동 축소한다(더블배틀에서 둘 다 세로로
+ * 길어져 화면 아래가 잘리는 것 방지). CHIP/CARD 슬롯은 건드리지 않는다.
+ */
+internal object ExpandExclusive {
+    /**
+     * [current] 상태에서 [slot] 을 [next] 로 바꾼 결과 stage 맵을 반환한다.
+     * next==EXPANDED 이면 slot 을 제외한 다른 EXPANDED 슬롯을 CARD 로 낮춘다.
+     */
+    fun apply(
+        current: Map<Int, CardStage>,
+        slot: Int,
+        next: CardStage,
+    ): Map<Int, CardStage> {
+        val result = current.toMutableMap()
+        result[slot] = next
+        if (next == CardStage.EXPANDED) {
+            for ((other, stage) in current) {
+                if (other != slot && stage == CardStage.EXPANDED) {
+                    result[other] = CardStage.CARD
+                }
+            }
+        }
+        return result
     }
 }
 

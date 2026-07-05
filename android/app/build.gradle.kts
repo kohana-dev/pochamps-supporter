@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.1.14" // OCR 원본해상도 캡처(빈텍스트 개선) (P28)
+        versionCode = 17
+        versionName = "0.1.15" // 확장 카드 가로 2컬럼 + 모서리 드래그 리사이즈 (P30)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

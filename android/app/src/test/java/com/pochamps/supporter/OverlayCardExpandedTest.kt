@@ -41,6 +41,20 @@ class OverlayCardExpandedTest {
     }
 
     @Test
+    fun 종족값_가로배치_shortLabel_HABCDS() {
+        // P30: 가로 한 줄(H·A·B·C·D·S) 배치용 1글자 라벨이 순서대로 채워지고 값과 대응해야 함.
+        val card = OverlayCardData.fromRepository(repo, "garchomp", "ko", BattleFormat.DOUBLES)!!
+        val ex = card.expanded!!
+        assertEquals(listOf("H", "A", "B", "C", "D", "S"), ex.stats.map { it.shortLabel })
+        // 긴 라벨(HP/공격/…)도 유지(호환) — shortLabel 은 추가 필드.
+        assertEquals("HP", ex.stats[0].label)
+        // shortLabel 과 value 의 대응이 유지(H=hp 값). garchomp HP=108.
+        assertEquals(108, ex.stats.first { it.shortLabel == "H" }.value)
+        // 6칸 합이 합계와 일치.
+        assertEquals(ex.statTotal, ex.stats.sumOf { it.value })
+    }
+
+    @Test
     fun garchomp_메가폼_타입특성종족값_스왑() {
         val card = OverlayCardData.fromRepository(repo, "garchomp", "ko", BattleFormat.DOUBLES)!!
         assertTrue(card.canMega)

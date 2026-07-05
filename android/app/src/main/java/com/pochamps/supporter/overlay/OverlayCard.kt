@@ -3,6 +3,7 @@ package com.pochamps.supporter.overlay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,6 +79,12 @@ private val AimIconColor = Color(0xFF_FFD54F)
  */
 val LocalOverlayScale = compositionLocalOf { 1.0f }
 
+/**
+ * [P30] 화면 높이(dp). 확장 2컬럼 패널의 안전망 최대 높이(≈85%)를 계산할 때 쓴다.
+ * 0(기본)이면 높이를 모른다는 뜻 → 제한 없이 wrap-content(스크롤 없음).
+ */
+val LocalOverlayScreenHeightDp = compositionLocalOf { 0f }
+
 /** 스케일 적용 dp. */
 @Composable
 private fun Dp.scaled(): Dp = this * LocalOverlayScale.current
@@ -116,10 +123,18 @@ fun OverlayCard(
     onForceRescan: (() -> Unit)? = null,
     /** 그립 바 오래누르기 → 앱/오버레이/캡처 완전 종료(P16). null 이면 종료 진입점 없음. */
     onExit: (() -> Unit)? = null,
+    /**
+     * [P30] 우하단 모서리 리사이즈 그립 드래그(px 이동량). 카드 크기를 연속 조절한다.
+     * null 이면 그립 미노출(주 카드에만 붙인다). 조작 모드에서만 창이 터치를 받으므로 터치통과는 보존된다.
+     */
+    onResizeDrag: ((dragDx: Float, dragDy: Float) -> Unit)? = null,
+    /** [P30] 리사이즈 드래그 종료 → 스케일 영속 저장. */
+    onResizeEnd: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
+    Box(modifier = modifier) {
+      Column(
+        modifier = Modifier
             .widthIn(min = 160.dp.scaled(), max = 300.dp.scaled())
             .background(CardBg, RoundedCornerShape(12.dp.scaled())),
     ) {
@@ -212,20 +227,14 @@ fun OverlayCard(
             data.typeChips.forEach { chip -> TypeChipView(chip) }
         }
 
-        // --- 2단계: 특성 + 주요기술 + (메가/바꾸기) ---
-        if (stage == CardStage.CARD || stage == CardStage.EXPANDED) {
+        // --- 2단계(CARD): 특성 + 주요기술 + (메가/바꾸기) 세로 배치 ---
+        // EXPANDED 는 아래 2컬럼 패널이 특성/기술까지 함께 렌더하므로 여기선 CARD 만.
+        if (stage == CardStage.CARD) {
             Column(
                 modifier = Modifier.padding(start = 12.dp.scaled(), end = 12.dp.scaled(), bottom = 10.dp.scaled()),
                 verticalArrangement = Arrangement.spacedBy(4.dp.scaled()),
             ) {
-                if (data.abilities.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.overlay_ability_prefix) +
-                            data.abilities.joinToString(" / "),
-                        color = SubTextColor, fontSize = 12.sp.scaled(),
-                    )
-                }
-                data.topMoves.forEach { move -> MoveRow(move) }
+                AbilityMovesBlock(data)
 
                 // 메가 세그먼트 토글([기본][메가]/[메가 X][메가 Y]).
                 if (megaForms.isNotEmpty()) {
@@ -246,21 +255,94 @@ fun OverlayCard(
                 }
 
                 // 3단계 진입 힌트.
-                if (stage == CardStage.CARD) {
-                    Text(
-                        stringResource(R.string.overlay_more_detail),
-                        color = AccentColor, fontSize = 11.sp.scaled(),
-                        modifier = Modifier.clickable { onInteract(); onTapCycle() },
-                    )
-                }
+                Text(
+                    stringResource(R.string.overlay_more_detail),
+                    color = AccentColor, fontSize = 11.sp.scaled(),
+                    modifier = Modifier.clickable { onInteract(); onTapCycle() },
+                )
             }
         }
 
-        // --- 3단계: 확장 패널(스크롤) ---
+        // --- 3단계(EXPANDED): 가로 2컬럼 패널(P30) ---
+        // 왼쪽: 특성 + 주요기술(+메가/바꾸기).  오른쪽: 종족값(가로 한 줄) + 방어 상성.
+        // 세로로 쌓이던 종족값 6줄·상성·기술을 가로로 펼쳐 카드 높이를 대략 절반으로 줄인다.
         if (stage == CardStage.EXPANDED) {
-            data.expanded?.let { ex -> ExpandedPanel(ex, onInteract) }
+            data.expanded?.let { ex ->
+                ExpandedTwoColumnPanel(
+                    data = data,
+                    ex = ex,
+                    megaForms = megaForms,
+                    megaSelection = megaSelection,
+                    hasMoreCandidates = meta.hasMoreCandidates,
+                    onInteract = onInteract,
+                    onSelectMega = onSelectMega,
+                    onOpenCandidateSheet = onOpenCandidateSheet,
+                )
+            }
+        }
+      } // Column
+
+      // [P30] 우하단 모서리 리사이즈 그립. 주 카드에만(onResizeDrag != null). 드래그로 카드 크기 연속 조절.
+      if (onResizeDrag != null) {
+          ResizeGrip(
+              onDrag = onResizeDrag,
+              onDragEnd = onResizeEnd ?: {},
+              modifier = Modifier.align(Alignment.BottomEnd),
+          )
+      }
+    } // Box
+}
+
+/**
+ * [P30] 우하단 모서리 리사이즈 그립. 작은 대각선 핸들 — 드래그하면 카드 스케일을 연속 조절한다.
+ * 조작(interact) 모드에서만 메인 창이 터치를 받으므로 평소 게임 터치 통과는 보존된다(P24).
+ * 눈에 띄되(대비 배경 + 대각선) 게임 정보를 가리지 않게 작게(≈18dp).
+ */
+@Composable
+private fun ResizeGrip(
+    onDrag: (dragDx: Float, dragDy: Float) -> Unit,
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val gripSize = 18.dp.scaled()
+    Box(
+        modifier = modifier
+            .padding(2.dp.scaled())
+            .size(gripSize)
+            .background(HandlePassiveBg, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled()))
+            .border(1.dp.scaled(), AccentColor, RoundedCornerShape(topStart = 8.dp.scaled(), bottomEnd = 10.dp.scaled()))
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDrag = { change, amount ->
+                        change.consume()
+                        onDrag(amount.x, amount.y)
+                    },
+                    onDragEnd = { onDragEnd() },
+                )
+            },
+    ) {
+        // 대각선 리사이즈 표시(우하단 방향 빗금 2개).
+        androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize().padding(4.dp.scaled())) {
+            val s = size.minDimension * 0.16f
+            val c = AccentColor
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.35f),
+                androidx.compose.ui.geometry.Offset(size.width * 0.35f, size.height), s)
+            drawLine(c, androidx.compose.ui.geometry.Offset(size.width, size.height * 0.7f),
+                androidx.compose.ui.geometry.Offset(size.width * 0.7f, size.height), s)
         }
     }
+}
+
+/** 특성 줄 + 주요 기술(사용률%) 목록. CARD/EXPANDED 공용. */
+@Composable
+private fun AbilityMovesBlock(data: OverlayCardData) {
+    if (data.abilities.isNotEmpty()) {
+        Text(
+            stringResource(R.string.overlay_ability_prefix) + data.abilities.joinToString(" / "),
+            color = SubTextColor, fontSize = 12.sp.scaled(),
+        )
+    }
+    data.topMoves.forEach { move -> MoveRow(move) }
 }
 
 /**
@@ -754,49 +836,118 @@ fun DiagnosticStrip(state: com.pochamps.supporter.capture.DiagState) {
     }
 }
 
+/**
+ * [P30] 확장 카드 가로 2컬럼 패널.
+ *
+ * 세로로 쌓이던 확장 내용(종족값 6줄 + 상성 + 기술)을 좌우로 나눠 카드 세로 높이를 대략 절반으로 줄인다.
+ *  - 왼쪽 컬럼: 도감# + 특성 + 주요 기술(사용률%) (+메가/바꾸기 진입).
+ *  - 오른쪽 컬럼: 종족값(H·A·B·C·D·S 가로 한 줄 + 합계) + 방어 상성(약점/반감/무효).
+ *
+ * 안전망: 그래도 화면을 넘치면 [maxHeight]([LocalOverlayScreenHeightDp] 의 ~85%) 로 제한하고 내부 세로
+ * 스크롤을 붙인다. 넘치지 않으면 스크롤은 나타나지 않는다(wrap-content).
+ */
 @Composable
-private fun ExpandedPanel(ex: OverlayCardData.ExpandedData, onInteract: () -> Unit) {
-    Column(
+private fun ExpandedTwoColumnPanel(
+    data: OverlayCardData,
+    ex: OverlayCardData.ExpandedData,
+    megaForms: List<OverlayCardData.MegaForm>,
+    megaSelection: Int,
+    hasMoreCandidates: Boolean,
+    onInteract: () -> Unit,
+    onSelectMega: (Int) -> Unit,
+    onOpenCandidateSheet: () -> Unit,
+) {
+    // 안전망 최대 높이: 화면 높이의 ~85%. 화면 높이를 모르면(0) 제한 없음(wrap-content).
+    val screenH = LocalOverlayScreenHeightDp.current
+    val maxH: Dp = if (screenH > 0) (screenH * 0.85f).dp else Dp.Unspecified
+    val scrollMod = if (maxH != Dp.Unspecified) {
+        Modifier.heightIn(max = maxH).verticalScroll(rememberScrollState())
+    } else Modifier
+
+    Row(
         modifier = Modifier
             .padding(start = 12.dp.scaled(), end = 12.dp.scaled(), bottom = 12.dp.scaled())
-            .heightIn(max = 320.dp.scaled())
-            .verticalScroll(rememberScrollState())
+            .then(scrollMod)
             .clickable(onClick = onInteract), // 스크롤/탭 = 조작 → 타이머 리셋
-        verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+        horizontalArrangement = Arrangement.spacedBy(14.dp.scaled()),
     ) {
-        Text(stringResource(R.string.overlay_dex_prefix) + "${ex.dexNumber}",
-            color = SubTextColor, fontSize = 11.sp.scaled())
+        // 왼쪽 컬럼: 특성 + 주요 기술 (+메가/바꾸기).
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp.scaled()),
+        ) {
+            Text(stringResource(R.string.overlay_dex_prefix) + "${ex.dexNumber}",
+                color = SubTextColor, fontSize = 11.sp.scaled())
+            AbilityMovesBlock(data)
 
-        // 종족값 6스탯(메가면 증감).
-        SectionLabel(stringResource(R.string.overlay_section_stats))
-        ex.stats.forEach { StatRow(it) }
-        Row {
-            Text(stringResource(R.string.overlay_section_total), color = ChipTextColor,
-                fontSize = 12.sp.scaled(), modifier = Modifier.weight(1f))
-            Text("${ex.statTotal}", color = ChipTextColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
-            DeltaText(ex.statTotalDelta)
+            if (megaForms.isNotEmpty()) {
+                MegaSegments(
+                    forms = megaForms,
+                    selection = megaSelection,
+                    onSelect = { onInteract(); onSelectMega(it) },
+                )
+            }
+            if (hasMoreCandidates) {
+                Text(
+                    stringResource(R.string.overlay_change_candidate),
+                    color = AccentColor, fontSize = 11.sp.scaled(),
+                    modifier = Modifier.clickable { onInteract(); onOpenCandidateSheet() },
+                )
+            }
         }
 
-        // 방어 상성.
-        if (ex.matchups.isNotEmpty()) {
-            SectionLabel(stringResource(R.string.overlay_section_matchup))
-            ex.matchups.forEach { line -> MatchupRow(line) }
-        }
+        // 오른쪽 컬럼: 종족값(가로 한 줄) + 방어 상성.
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+        ) {
+            SectionLabel(stringResource(R.string.overlay_section_stats))
+            StatsRowHorizontal(ex)
 
-        // 전체 기술(사용률순).
-        if (ex.allMoves.isNotEmpty()) {
-            SectionLabel(stringResource(R.string.overlay_section_moves))
-            ex.allMoves.forEach { MoveRow(it) }
+            if (ex.matchups.isNotEmpty()) {
+                SectionLabel(stringResource(R.string.overlay_section_matchup))
+                ex.matchups.forEach { line -> MatchupRow(line) }
+            }
         }
     }
 }
 
+/**
+ * [P30] 종족값을 가로 한 줄로: H·A·B·C·D·S 6칸 + 합계.
+ * 기존 6줄(HP 78 / 공격 81 …)을 가로로 펼쳐 세로 3~4줄을 절약한다.
+ * 각 칸은 [라벨/값](메가면 증감 색으로). 합계는 우측에 별도 표시.
+ */
 @Composable
-private fun StatRow(s: OverlayCardData.StatLine) {
+private fun StatsRowHorizontal(ex: OverlayCardData.ExpandedData) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp.scaled()),
+        verticalAlignment = Alignment.Top,
+    ) {
+        ex.stats.forEach { s -> StatCell(s, Modifier.weight(1f)) }
+    }
+    // 합계 줄(가로 배치라 한 줄만 추가).
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(s.label, color = SubTextColor, fontSize = 12.sp.scaled(), modifier = Modifier.width(56.dp.scaled()))
-        Text("${s.value}", color = ChipTextColor, fontSize = 12.sp.scaled(), modifier = Modifier.weight(1f))
-        DeltaText(s.delta)
+        Text(stringResource(R.string.overlay_section_total), color = SubTextColor, fontSize = 11.sp.scaled())
+        Spacer(Modifier.width(4.dp.scaled()))
+        Text("${ex.statTotal}", color = ChipTextColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
+        DeltaText(ex.statTotalDelta)
+    }
+}
+
+/** 종족값 한 칸(H/A/B/C/D/S 라벨 위, 값 아래). 메가 증감이 있으면 값 색을 증감색으로. */
+@Composable
+private fun StatCell(s: OverlayCardData.StatLine, modifier: Modifier = Modifier) {
+    val valueColor = when {
+        s.delta > 0 -> PosDelta
+        s.delta < 0 -> NegDelta
+        else -> ChipTextColor
+    }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(s.shortLabel, color = SubTextColor, fontSize = 10.sp.scaled(), fontWeight = FontWeight.Bold)
+        Text("${s.value}", color = valueColor, fontSize = 12.sp.scaled(), fontWeight = FontWeight.Bold)
     }
 }
 

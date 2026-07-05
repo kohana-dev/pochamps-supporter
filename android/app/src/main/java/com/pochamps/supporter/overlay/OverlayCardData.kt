@@ -42,8 +42,16 @@ data class OverlayCardData(
     data class TypeChip(val label: String, val colorHex: String?)
     data class MoveLine(val label: String, val pct: Double?)
 
-    /** 종족값 한 스탯(표시명 + 값 + base 대비 증감 — 메가 시각화용). */
-    data class StatLine(val label: String, val value: Int, val delta: Int = 0)
+    /**
+     * 종족값 한 스탯(표시명 + 값 + base 대비 증감 — 메가 시각화용).
+     * [shortLabel] 은 가로 한 줄 배치(P30)용 1글자 라벨(H·A·B·C·D·S — 커뮤니티 표준, 언어 중립).
+     */
+    data class StatLine(
+        val label: String,
+        val value: Int,
+        val delta: Int = 0,
+        val shortLabel: String = "",
+    )
 
     /**
      * 방어 상성 한 줄. [bucket] 은 UI 가 언어 리소스로 라벨을 그릴 때 사용(strings.xml).
@@ -143,13 +151,14 @@ data class OverlayCardData(
         ): ExpandedData {
             val s = entry.base_stats
             val b = baseStatsForDelta
+            // shortLabel(H·A·B·C·D·S): 가로 한 줄 배치(P30)용 커뮤니티 표준 1글자 라벨(언어 중립).
             val stats = listOf(
-                StatLine("HP", s.hp, (b?.let { s.hp - it.hp }) ?: 0),
-                StatLine("공격", s.atk, (b?.let { s.atk - it.atk }) ?: 0),
-                StatLine("방어", s.def, (b?.let { s.def - it.def }) ?: 0),
-                StatLine("특공", s.spa, (b?.let { s.spa - it.spa }) ?: 0),
-                StatLine("특방", s.spd, (b?.let { s.spd - it.spd }) ?: 0),
-                StatLine("스피드", s.spe, (b?.let { s.spe - it.spe }) ?: 0),
+                StatLine("HP", s.hp, (b?.let { s.hp - it.hp }) ?: 0, "H"),
+                StatLine("공격", s.atk, (b?.let { s.atk - it.atk }) ?: 0, "A"),
+                StatLine("방어", s.def, (b?.let { s.def - it.def }) ?: 0, "B"),
+                StatLine("특공", s.spa, (b?.let { s.spa - it.spa }) ?: 0, "C"),
+                StatLine("특방", s.spd, (b?.let { s.spd - it.spd }) ?: 0, "D"),
+                StatLine("스피드", s.spe, (b?.let { s.spe - it.spe }) ?: 0, "S"),
             )
             val statTotalDelta = b?.let { s.total - it.total } ?: 0
 

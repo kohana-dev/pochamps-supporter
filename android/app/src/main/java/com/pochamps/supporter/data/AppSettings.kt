@@ -56,13 +56,26 @@ class AppSettings(context: Context) {
         set(value) { prefs.edit().putBoolean(KEY_DIAG, value).apply() }
 
     /**
-     * 오버레이 카드 스케일(P16). 실기기에서 카드가 너무 크거나 작을 때 설정에서 조정한다.
-     * 저장값은 [OverlayScale] 의 허용 단계(0.8/1.0/1.25/1.5) 중 하나로 스냅되고, 범위를 넘으면 클램프된다.
-     * 기본 1.0. 저장 즉시 다음 렌더에 반영(오버레이 재생성).
+     * 오버레이 카드 스케일(P16 + P30).
+     *
+     * - 읽기: 저장값을 [OverlayScale.clampCont] 로만 제한해 반환한다(스냅 안 함). 설정 칩으로 저장된
+     *   단계값(0.8/1.0/1.25/1.5)도, P30 모서리 드래그로 저장된 연속값(0.6~2.0)도 그대로 살린다.
+     * - 쓰기(칩): [OverlayScale.snap] 으로 특정 단계에 스냅해 저장한다(설정 UI 칩 = 특정값).
+     * - 쓰기(드래그): [overlayScaleContinuous] 로 스냅 없이 연속 저장한다(모서리 드래그 = 미세조정).
+     *
+     * 기본 1.0. 저장 즉시 다음 렌더에 반영(오버레이 재생성/setScale).
      */
     var overlayScale: Float
-        get() = OverlayScale.snap(prefs.getFloat(KEY_SCALE, OverlayScale.DEFAULT))
+        get() = OverlayScale.clampCont(prefs.getFloat(KEY_SCALE, OverlayScale.DEFAULT))
         set(value) { prefs.edit().putFloat(KEY_SCALE, OverlayScale.snap(value)).apply() }
+
+    /**
+     * [P30] 오버레이 카드 스케일을 스냅 없이 연속 저장(모서리 드래그 리사이즈용).
+     * 값은 [OverlayScale.clampCont] 로만 제한된다(0.6~2.0). 설정 칩은 [overlayScale] 로 특정값을 쓴다.
+     */
+    var overlayScaleContinuous: Float
+        get() = OverlayScale.clampCont(prefs.getFloat(KEY_SCALE, OverlayScale.DEFAULT))
+        set(value) { prefs.edit().putFloat(KEY_SCALE, OverlayScale.clampCont(value)).apply() }
 
     /**
      * 배틀 형식(싱글/더블, P20). ROI 밴드 수(싱글 1 / 더블 2)와 사용률 메타(싱글 vs 더블)를 함께 좌우한다.

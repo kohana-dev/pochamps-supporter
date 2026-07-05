@@ -227,6 +227,8 @@ class CaptureService : Service() {
             onCalibrate = { showCalibrationOverlay() },
             // 컨트롤 바 진단 ON/OFF(P21): 설정 영속. 오버레이 스트립 표시는 렌더러가 즉시 반영.
             onToggleDiag = { enabled -> AppSettings(this).diagnosticsEnabled = enabled },
+            // [P30] 모서리 드래그 리사이즈 → 스케일 연속 영속 저장(칩과 같은 키, 스냅 없이).
+            onScaleChanged = { s -> AppSettings(this).overlayScaleContinuous = s },
             // 최소화 상태 영속(P21): 재시작 후에도 최소화 유지.
             minimizeStore = com.pochamps.supporter.overlay.PrefsMinimizeStore(this),
             // P25: 자동복귀 지연. 설정에서 끄면(false) TIMEOUT_DISABLED(0) → 유저가 다시 탭할 때까지 조작 유지.
