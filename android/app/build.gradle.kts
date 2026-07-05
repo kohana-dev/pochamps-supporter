@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 21
-        versionName = "0.2.0" // 출시 팩: 개인정보처리방침·라이선스 화면·로컬 크래시 리포트·사용자 README (P34)
+        versionCode = 22
+        versionName = "0.2.1" // 실기기 리포트 3건: 터치 영구차단 버그 + 단일앱 공유 안내 + 휴지통 드래그 종료 (P35)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

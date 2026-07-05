@@ -33,6 +33,11 @@
     <string name="overlay_single_app_title">需要共享整个屏幕</string>
     <string name="overlay_single_app_body">似乎是以\'单个应用\'共享启动的。要识别游戏，请选择\'整个屏幕（Entire screen）\'并重新开始。</string>
     <string name="overlay_single_app_restart">重新开始</string>
+
+    <!-- P35 报告3 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">拖到这里退出</string>
+    <string name="overlay_trash_release_to_exit">松开即退出</string>
     <string name="home_preview_title">预览</string>
     <string name="home_preview_desc">无需屏幕捕获，通过演示查看信息卡片的样子。</string>
     <string name="home_preview_running_desc">再次点击演示卡片可循环切换其他宝可梦示例。</string>

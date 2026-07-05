@@ -33,6 +33,11 @@
     <string name="overlay_single_app_title">Partage de tout l\'écran requis</string>
     <string name="overlay_single_app_body">Cela ressemble à un partage \'Une seule appli\'. Pour reconnaître le jeu, choisissez \'Tout l\'écran (Entire screen)\' et redémarrez.</string>
     <string name="overlay_single_app_restart">Redémarrer</string>
+
+    <!-- P35 report 3 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">Glisser ici pour quitter</string>
+    <string name="overlay_trash_release_to_exit">Relâcher pour quitter</string>
     <string name="home_preview_title">Aperçu</string>
     <string name="home_preview_desc">Voyez à quoi ressemble la carte d\'info avec une démo, sans capture d\'écran.</string>
     <string name="home_preview_running_desc">Touchez à nouveau la carte de démo pour parcourir d\'autres exemples de Pokémon.</string>

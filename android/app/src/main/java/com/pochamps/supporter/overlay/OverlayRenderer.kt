@@ -155,6 +155,21 @@ class OverlayRenderer(
     private var handleAdded = false
 
     /**
+     * [P35 리포트3] 휴지통 드롭존 창(전체화면·비터치·투명). 핸들 드래그 중에만 잠깐 뜬다.
+     * 메신저 챗헤드 패턴 — 드래그 중인 핸들을 여기로 끌어다 놓으면(드롭) 앱을 완전 종료한다.
+     * 비터치(FLAG_NOT_TOUCHABLE)라 드래그 제스처는 계속 핸들 창이 받는다(이 창은 순수 시각 표시).
+     */
+    private var trashView: ComposeView? = null
+    private var trashParams: WindowManager.LayoutParams? = null
+    private var trashAdded = false
+
+    /** [P35] 드래그 중 핸들 중심이 드롭존에 겹쳤는지(하이라이트/드롭 종료 판정). */
+    private val trashHovering = mutableStateOf(false)
+
+    /** [P35] 휴지통 드롭존이 표시 중인지(핸들 드래그 중). */
+    private val trashVisible = mutableStateOf(false)
+
+    /**
      * [P24] 터치 모드 상태 기계(순수 로직 [InteractionMode]).
      *  - interactive=false(기본): 메인 창 `FLAG_NOT_TOUCHABLE` → 모든 터치 게임 통과.
      *  - interactive=true: 핸들 탭으로 진입. 메인 창 touchable → 카드/시트 조작 가능.
@@ -483,17 +498,104 @@ class OverlayRenderer(
         val lp = handleParams ?: return
         val view = handleView ?: return
         val m = context.resources.displayMetrics
+        val hw = view.width.takeIf { it > 0 } ?: handleApproxSizePx()
+        val hh = view.height.takeIf { it > 0 } ?: handleApproxSizePx()
         val newPos = OverlayPosition(lp.x + dx.toInt(), lp.y + dy.toInt())
             .clampedTo(
                 screenWidth = m.widthPixels,
                 screenHeight = m.heightPixels,
-                cardWidth = view.width.takeIf { it > 0 } ?: handleApproxSizePx(),
-                cardHeight = view.height.takeIf { it > 0 } ?: handleApproxSizePx(),
+                cardWidth = hw,
+                cardHeight = hh,
             )
         lp.x = newPos.x
         lp.y = newPos.y
         windowManager.updateViewLayout(view, lp)
+        // [P35 리포트3] 드래그 중 휴지통 겹침 판정 → 하이라이트 갱신.
+        updateTrashHover(newPos.x + hw / 2f, newPos.y + hh / 2f)
     }
+
+    // --- [P35 리포트3] 휴지통 드롭존(핸들 드래그 종료 = 종료) ---
+
+    /** 드래그 시작 시 휴지통 드롭존 창을 띄운다(전체화면·비터치·시각 표시 전용). */
+    private fun onHandleDragStart() {
+        showTrash()
+    }
+
+    /** 드래그 델타마다 핸들 중심 vs 드롭존 겹침을 판정해 하이라이트 상태를 갱신한다. */
+    private fun updateTrashHover(handleCenterX: Float, handleCenterY: Float) {
+        if (!trashAdded) return
+        val m = context.resources.displayMetrics
+        val (zx, zy) = TrashDropZone.center(m.widthPixels, m.heightPixels, trashBottomMarginPx())
+        trashHovering.value = TrashDropZone.isOver(
+            handleCenterX = handleCenterX,
+            handleCenterY = handleCenterY,
+            zoneCenterX = zx,
+            zoneCenterY = zy,
+            hitRadiusPx = trashHitRadiusPx(),
+        )
+    }
+
+    /**
+     * 드래그 종료: 드롭존에 겹쳐 있으면(hovering) **완전 종료**([onExit] = ACTION_STOP 경로),
+     * 아니면 평소처럼 위치를 저장한다. 어느 쪽이든 휴지통 창을 걷는다.
+     */
+    private fun onHandleDragEnd() {
+        val dropExit = trashHovering.value && trashAdded
+        hideTrash()
+        if (dropExit) {
+            android.util.Log.i("OverlayRenderer", "휴지통 드롭 → 완전 종료(onExit)")
+            onExit()
+        } else {
+            persistHandlePosition()
+        }
+    }
+
+    private fun showTrash() {
+        trashVisible.value = true
+        trashHovering.value = false
+        if (trashAdded) return
+        val type =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            // 비터치·비포커스: 드래그 제스처는 계속 핸들 창이 받고, 이 창은 순수 시각 표시.
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+        val view = ComposeView(context).apply {
+            setViewTreeLifecycleOwner(this@OverlayRenderer)
+            setViewTreeSavedStateRegistryOwner(this@OverlayRenderer)
+            setContent { TrashRoot() }
+        }
+        trashParams = lp
+        trashView = view
+        runCatching { windowManager.addView(view, lp) }
+        trashAdded = true
+    }
+
+    private fun hideTrash() {
+        trashVisible.value = false
+        trashHovering.value = false
+        trashView?.let { runCatching { windowManager.removeView(it) } }
+        trashView = null
+        trashParams = null
+        trashAdded = false
+    }
+
+    /** 드롭존 중심의 화면 하단 여백(px). */
+    private fun trashBottomMarginPx(): Int =
+        (TRASH_BOTTOM_MARGIN_DP * context.resources.displayMetrics.density).toInt()
+
+    /** 드롭존 히트 반경(px) — 손가락 오차에 관대하게 넉넉히. */
+    private fun trashHitRadiusPx(): Float =
+        TRASH_HIT_RADIUS_DP * context.resources.displayMetrics.density
 
     /**
      * [P25] 화면 구성 변경(회전/크기 변화) 재보정. 서비스가 `onConfigurationChanged` 에서 호출한다.
@@ -678,6 +780,8 @@ class OverlayRenderer(
         // [P35] 자동복귀/워치독 Handler 콜백 정리(누수·좀비 타이머 방지).
         mainHandler.removeCallbacks(autoRevertTick)
         autoRevertRunning = false
+        // [P35 리포트3] 휴지통 드롭존 창 정리(드래그 중 종료돼도 창이 남지 않게).
+        hideTrash()
         if (!added && !handleAdded) {
             lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
             return
@@ -1170,12 +1274,18 @@ class OverlayRenderer(
 
         val handleDrag = Modifier.pointerInput(Unit) {
             detectDragGestures(
+                onDragStart = {
+                    markActivity()
+                    onHandleDragStart() // P35 리포트3: 휴지통 드롭존 표시.
+                },
                 onDrag = { change, dragAmount ->
                     change.consume()
                     markActivity() // P35: 핸들 드래그도 조작 — 워치독 기준 갱신.
                     onHandleDrag(dragAmount.x, dragAmount.y)
                 },
-                onDragEnd = { persistHandlePosition() },
+                // P35 리포트3: 드롭존 위면 완전 종료, 아니면 위치 저장. 어느 쪽이든 드롭존 걷기.
+                onDragEnd = { onHandleDragEnd() },
+                onDragCancel = { hideTrash(); persistHandlePosition() },
             )
         }
 
@@ -1191,6 +1301,22 @@ class OverlayRenderer(
                 onToggle = { if (minimized.value) toggleMinimized() else toggleInteraction() },
                 // 길게 누르기 → 카드/컨트롤 전체 최소화 ↔ 복원(P21 통합, 어느 상태서든 동작).
                 onLongPress = { toggleMinimized() },
+            )
+        }
+    }
+
+    /**
+     * [P35 리포트3] 휴지통 드롭존 창의 루트 컴포저블(전체화면·비터치). 핸들 드래그 중에만 뜬다.
+     * 하이라이트 상태([trashHovering])는 렌더러가 드래그마다 갱신한다.
+     */
+    @androidx.compose.runtime.Composable
+    private fun TrashRoot() {
+        val hovering by trashHovering
+        val scaleValue by scale
+        CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
+            TrashDropZoneOverlay(
+                hovering = hovering,
+                bottomMarginDp = TRASH_BOTTOM_MARGIN_DP,
             )
         }
     }
@@ -1365,6 +1491,12 @@ class OverlayRenderer(
 
         /** [P35] 자동복귀 Handler 폴링 주기(ms). 상호작용 모드에서 이 주기로 타임아웃을 평가. */
         const val AUTO_REVERT_POLL_MS = 500L
+
+        /** [P35 리포트3] 휴지통 드롭존 중심의 화면 하단 여백(dp). */
+        const val TRASH_BOTTOM_MARGIN_DP = 72
+
+        /** [P35 리포트3] 휴지통 드롭존 히트 반경(dp) — 손가락 오차에 관대하게 넉넉히. */
+        const val TRASH_HIT_RADIUS_DP = 88f
     }
 }
 

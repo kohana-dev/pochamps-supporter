@@ -34,6 +34,11 @@
     <string name="overlay_single_app_body">This looks like a \'Single app\' share. To recognize your game, choose \'Entire screen\' and start again.</string>
     <string name="overlay_single_app_restart">Restart</string>
 
+    <!-- P35 report 3: drag-to-trash exit -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">Drag here to exit</string>
+    <string name="overlay_trash_release_to_exit">Release to exit</string>
+
     <string name="home_preview_title">Preview</string>
     <string name="home_preview_desc">See how the info card looks with a demo — no screen capture needed.</string>
     <string name="home_preview_running_desc">Tap the demo card again to cycle through other Pokémon examples.</string>

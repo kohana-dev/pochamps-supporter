@@ -33,6 +33,11 @@
     <string name="overlay_single_app_title">需要分享整個畫面</string>
     <string name="overlay_single_app_body">似乎是以\'單一應用程式\'分享啟動的。要辨識遊戲，請選擇\'整個畫面（Entire screen）\'並重新開始。</string>
     <string name="overlay_single_app_restart">重新開始</string>
+
+    <!-- P35 報告3 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">拖到這裡結束</string>
+    <string name="overlay_trash_release_to_exit">放開即結束</string>
     <string name="home_preview_title">預覽</string>
     <string name="home_preview_desc">無需畫面擷取，透過示範查看資訊卡片的樣子。</string>
     <string name="home_preview_running_desc">再次點擊示範卡片可循環切換其他寶可夢範例。</string>

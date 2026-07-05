@@ -33,6 +33,11 @@
     <string name="overlay_single_app_title">Freigabe des gesamten Bildschirms nötig</string>
     <string name="overlay_single_app_body">Das sieht nach einer \'Einzelne App\'-Freigabe aus. Wähle \'Gesamter Bildschirm (Entire screen)\' und starte neu.</string>
     <string name="overlay_single_app_restart">Neu starten</string>
+
+    <!-- P35 report 3 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">Zum Beenden hierher ziehen</string>
+    <string name="overlay_trash_release_to_exit">Loslassen zum Beenden</string>
     <string name="home_preview_title">Vorschau</string>
     <string name="home_preview_desc">Sieh dir per Demo an, wie die Infokarte aussieht – ohne Bildschirmaufnahme.</string>
     <string name="home_preview_running_desc">Tippe erneut auf die Demokarte, um weitere Pokémon-Beispiele durchzugehen.</string>

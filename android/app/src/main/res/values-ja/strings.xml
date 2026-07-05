@@ -35,6 +35,11 @@
     <string name="overlay_single_app_body">\'単一のアプリ\'共有で開始されたようです。認識するには\'全画面（Entire screen）\'を選んで再開してください。</string>
     <string name="overlay_single_app_restart">再開</string>
 
+    <!-- P35 レポート3: ゴミ箱ドラッグ終了 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">ここにドラッグで終了</string>
+    <string name="overlay_trash_release_to_exit">離すと終了</string>
+
     <string name="home_preview_title">プレビュー</string>
     <string name="home_preview_desc">画面キャプチャなしで、情報カードの見え方をデモで確認します。</string>
     <string name="home_preview_running_desc">デモカードを再度タップすると別のポケモン例に切り替わります。</string>

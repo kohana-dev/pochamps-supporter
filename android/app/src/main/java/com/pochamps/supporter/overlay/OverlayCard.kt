@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -851,6 +853,62 @@ fun SingleAppShareCard(
                 stringResource(R.string.sheet_close),
                 color = SubTextColor, fontSize = 13.sp.scaled(),
                 modifier = Modifier.clickable(onClick = onDismiss),
+            )
+        }
+    }
+}
+
+/**
+ * [P35 리포트3] 휴지통 드롭존 오버레이(전체화면·비터치). 핸들 드래그 중에만 뜬다.
+ * 하단 중앙에 반투명 원형 휴지통을 그리고, 드래그 핸들이 그 위에 오면([hovering]=true) 붉게
+ * 하이라이트한다. 이 창은 비터치라 시각 표시만 담당하고, 드롭(손 떼기) 판정/종료는 렌더러가 한다.
+ *
+ * @param hovering 드래그 핸들이 드롭존에 겹쳤는가(하이라이트).
+ * @param bottomMarginDp 화면 아래에서 드롭존 중심까지 여백(dp) — 렌더러의 픽셀 계산과 일치.
+ */
+@Composable
+fun TrashDropZoneOverlay(
+    hovering: Boolean,
+    bottomMarginDp: Int,
+    modifier: Modifier = Modifier,
+) {
+    val zoneSize = 72.dp.scaled()
+    // 하이라이트 시 붉게 + 조금 커진 느낌(테두리 강조). 평소엔 짙은 반투명.
+    val bg = if (hovering) Color(0xF2_C62828) else Color(0xCC_263238)
+    val ring = if (hovering) Color.White else Color(0x88_FFFFFF)
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = bottomMarginDp.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(zoneSize)
+                    .background(bg, CircleShape)
+                    .border(2.dp.scaled(), ring, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                // 휴지통 글리프(간단·명확). 하이라이트 시 흰색.
+                Text(
+                    stringResource(R.string.overlay_trash_glyph),
+                    color = Color.White,
+                    fontSize = 30.sp.scaled(),
+                )
+            }
+            Text(
+                stringResource(
+                    if (hovering) R.string.overlay_trash_release_to_exit
+                    else R.string.overlay_trash_drag_here,
+                ),
+                color = Color.White,
+                fontSize = 12.sp.scaled(),
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .background(Color(0xAA_000000), RoundedCornerShape(8.dp.scaled()))
+                    .padding(horizontal = 8.dp.scaled(), vertical = 3.dp.scaled()),
             )
         }
     }

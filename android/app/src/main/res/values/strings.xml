@@ -35,6 +35,11 @@
     <string name="overlay_single_app_body">\'단일 앱\' 공유로 시작된 것 같습니다. 인식하려면 \'전체 화면(Entire screen)\'을 선택해 다시 시작하세요.</string>
     <string name="overlay_single_app_restart">다시 시작</string>
 
+    <!-- P35 리포트3: 휴지통 드래그 종료 -->
+    <string name="overlay_trash_glyph">🗑</string>
+    <string name="overlay_trash_drag_here">여기로 끌어 종료</string>
+    <string name="overlay_trash_release_to_exit">놓으면 종료</string>
+
     <!-- 미리보기(데모) -->
     <string name="home_preview_title">미리보기</string>
     <string name="home_preview_desc">화면 캡처 없이 정보 카드가 어떻게 보이는지 데모로 확인합니다.</string>
