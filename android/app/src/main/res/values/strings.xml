@@ -110,6 +110,13 @@
     <string name="overlay_force_rescan_desc">다시 인식</string>
     <string name="overlay_expand">펼치기</string>
     <string name="overlay_collapse">접기</string>
+    <!-- P21: 항상 보이는 컨트롤 바(최소화/검색/보정/진단) -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">최소화</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">이름 영역 보정</string>
+    <string name="overlay_diag_toggle">진단</string>
     <string name="overlay_section_stats">종족값</string>
     <string name="overlay_section_total">합계</string>
     <string name="overlay_section_matchup">방어 상성</string>

@@ -83,6 +83,13 @@
     <string name="overlay_force_rescan_desc">Riscansiona</string>
     <string name="overlay_expand">Espandi</string>
     <string name="overlay_collapse">Comprimi</string>
+    <!-- P21: barra di controllo sempre visibile -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">Riduci a icona</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">Calibra area del nome</string>
+    <string name="overlay_diag_toggle">Diag.</string>
     <string name="overlay_section_stats">Statistiche base</string>
     <string name="overlay_section_total">Totale</string>
     <string name="overlay_section_matchup">Confronti difensivi</string>

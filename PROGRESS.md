@@ -4,6 +4,46 @@
 
 ---
 
+## P21 — 항상 보이는 오버레이 컨트롤 바 (최소화 + 검색 + 보정, v0.1.7) ✅ 완료 (2026-07-05)
+
+> **실기기 리포트 대응**: 숨기기/펼치기(3단계 CardStage)·🔍수동검색이 전부 **"카드" 위에**만 있어,
+> 상대 인식이 실패하면(`slotOrder.isEmpty()`) 슬롯 카드가 안 생겨 → 접을 카드도, 누를 🔍도 사라진다.
+> 정작 인식이 안 될 때 검색·보정이 가장 필요한데 진입점이 없다. 또 화면을 가려도 전체를 빠르게 치울(최소화) 수단이 없었다.
+> → **캡처가 켜져 있으면(`captureActive`) 카드 유무와 무관하게 항상 뜨는 컨트롤 바**를 추가한다.
+
+### 기능 — 항상 보이는 최소 컨트롤 바 (인식 상태 무관)
+1. **컨트롤 바(`OverlayCard.ControlBar`)**: `captureActive` 면 카드가 없어도 항상 렌더. 구성(좌→우): `[−]최소화 · [싱글/더블]형식(P20 통합) · [🔍]검색 · [⃞]보정 · [진단ON/OFF]`. 반투명·아이콘 위주(`ControlBarBg=0xCC…`), 바만 터치를 받고 그 밖은 게임으로 통과(창=카드/`FLAG_NOT_FOCUSABLE` 전략 보존). 기존 P20 `FormatToggle` 자리를 이 바가 대체.
+2. **숨기기/펼치기(최소화)**: `[−]` → 전체(카드+컨트롤)를 **작은 드래그 가능한 플로팅 핸들**(`MinimizedHandle`, `▟`)로 접음 ↔ 핸들 탭하면 복원. 최소화 상태는 화면을 거의 안 가림. 상태 **영속**(`PrefsMinimizeStore`, `overlay_prefs`) → 재시작 후에도 유지. 최소화 중에도 드래그 이동 가능(위치는 컨트롤 바/카드와 공유 저장). 캡처 꺼지면 핸들도 숨김.
+3. **검색 상시 진입**: 컨트롤 바 `[🔍]` → **카드가 없어도** 검색 시트 오픈 → 포켓몬 선택 → 슬롯에 핀 고정해 카드 생성. 핀 대상 슬롯은 `ControlSearch.targetSlot(format, occupied)`: 싱글=슬롯0, 더블=빈 슬롯 0/1 순차(둘 다 차면 0 덮어쓰기). 기존 P16 검색 시트/IME 포커스 토글/가로 flyout 재사용.
+4. **보정/진단 바로가기**: `[⃞]` → `showCalibrationOverlay()`(기존 `ACTION_CALIBRATE` 재사용) 인식 실패 현장에서 즉시 ROI 맞춤. `[진단]` → `diagnosticsEnabled` 즉시 토글 + 설정 영속(오버레이 스트립 표시 즉시 반영).
+5. 기존 카드의 3단계 접기/🔍/↻/메가/후보/핀은 그대로 유지(중복 진입점이어도 OK).
+
+### 순수 로직 분리(JVM 테스트 가능)
+- `overlay/ControlBarLogic.kt`: `MinimizeState`(토글/기본값)·`MinimizeStore`(영속 인터페이스)·`ControlSearch.targetSlot`(카드 없이 검색→핀 슬롯 선택). Android 의존성 없음.
+- `overlay/PrefsMinimizeStore.kt`: `MinimizeStore` 의 SharedPreferences 구현(위치 저장소와 같은 `overlay_prefs` 공유).
+
+### 테스트 (+8, 순수 JVM → 218)
+- `ControlBarTest`(신규, +8): 최소화 기본=펼침, 토글 왕복, 영속 재로드, "카드 없이 검색" 슬롯 선택(싱글/더블 빈·부분·만석 케이스).
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 데모 오버레이 — `field_samples/p21/`)
+- (a) 캡처 세션 + **인식 없음** 상태에서 **컨트롤 바 노출** 확인(`01_controlbar_with_card.png` — 바 `[− · Singles Doubles · 🔍 ⃞ Diag]`).
+- (b) 컨트롤 바 `🔍` → 검색 시트(`04`) → "pika" 입력(IME 포커스 OK, `05`) → **Pikachu 선택 → 슬롯1 카드 생성 + 📌Unpin**(`06`). 더블에서 슬롯0(Garchomp) 점유 → 검색 핀이 슬롯1로 순차됨을 시각 입증.
+- (c) `[−]` 최소화 → 작은 핸들(`02`) → 탭 복원(`03`).
+- (d) `[진단]` 토글 ON(하이라이트, `07`) · `[⃞]` → **보정 오버레이 열림**(`08`).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 218/218, failures 0**(P20 210 + P21 8).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 9 / versionName 0.1.7**.
+
+### 코드 변경 요약
+- `overlay/ControlBarLogic.kt`(신규 — 최소화 상태/스토어/검색 슬롯 로직), `overlay/PrefsMinimizeStore.kt`(신규 — 영속).
+- `overlay/OverlayCard.kt`(`ControlBar`·`MinimizedHandle` 컴포저블, `ControlBarBg`).
+- `overlay/OverlayRenderer.kt`(`minimized` 상태·`toggleMinimized`·`toggleDiagnostics`·`onCalibrate`/`onToggleDiag`/`minimizeStore` 주입, 최소화 렌더 분기, `CardStack` 이 `ControlBar` 렌더 + 카드 없이 검색 슬롯 선택).
+- `capture/CaptureService.kt`(`onCalibrate=showCalibrationOverlay`·`onToggleDiag`·`PrefsMinimizeStore` 주입).
+- strings(9개 values-*): 컨트롤 바 문구 6종(en/ko/ja 정확, 나머지 best-effort).
+
+---
+
 ## P19 — 표시 언어를 캡처 언어와 분리 + 9개 언어 UI ✅ 완료 (2026-07-05)
 
 ### 배경(실기기 리포트)

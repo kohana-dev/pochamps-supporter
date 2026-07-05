@@ -63,6 +63,8 @@ private val MegaColor = Color(0xFF_7E57C2)
 private val PosDelta = Color(0xFF_66BB6A)
 private val NegDelta = Color(0xFF_EF5350)
 private val ExitColor = Color(0xFF_E57373)
+// P21: 컨트롤 바/최소화 핸들 배경(카드보다 조금 더 투명 — 게임을 덜 가리게).
+private val ControlBarBg = Color(0xCC_1A1A1A)
 
 /**
  * 오버레이 카드 스케일(P16). 밀도 기반 배수 — 모든 dp/sp 를 이 값으로 곱한다(graphicsLayer 아님 →
@@ -282,6 +284,139 @@ fun FormatToggle(
     ) {
         FormatSegment(stringResource(R.string.format_single), selected = !isDoubles) { onSelect(false) }
         FormatSegment(stringResource(R.string.format_doubles), selected = isDoubles) { onSelect(true) }
+    }
+}
+
+/**
+ * [P21] 항상 보이는 오버레이 컨트롤 바.
+ *
+ * 캡처가 켜져 있으면(captureActive) 카드 유무와 무관하게 항상 렌더된다 — 인식이 실패해
+ * 슬롯 카드가 없더라도 검색·보정·진단·형식전환·최소화 진입점이 사라지지 않는다.
+ *
+ * 창=카드 bounds/터치 통과 전략 보존: 이 바 자체(Row)만 터치를 받고, 그 밖 영역은 게임으로 통과한다
+ * (창은 WRAP_CONTENT + 기본 FLAG_NOT_FOCUSABLE 유지). 반투명·아이콘 위주로 눈에 덜 거슬리게 한다.
+ *
+ * 구성(좌→우): [−]최소화 · [싱글/더블]형식 · [🔍]검색 · [⃞]보정 · [진단ON/OFF].
+ * 배틀 형식 토글(P20)을 이 바에 통합해 항상 접근 가능하게 한다.
+ */
+@Composable
+fun ControlBar(
+    isDoubles: Boolean,
+    diagOn: Boolean,
+    dragModifier: Modifier,
+    /** [−] 전체 오버레이를 작은 핸들로 최소화. */
+    onMinimize: () -> Unit,
+    /** 형식 세그먼트 선택(싱글/더블). */
+    onSelectFormat: (doubles: Boolean) -> Unit,
+    /** [🔍] 카드가 없어도 검색 시트 열기(수동 지정 → 핀). */
+    onSearch: () -> Unit,
+    /** [⃞] 이름 영역 보정(ROI) 오버레이 열기(ACTION_CALIBRATE). */
+    onCalibrate: () -> Unit,
+    /** [진단] 진단 스트립 표시 ON/OFF 즉시 토글. */
+    onToggleDiag: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .background(ControlBarBg, RoundedCornerShape(10.dp.scaled()))
+            .then(dragModifier)
+            .padding(horizontal = 6.dp.scaled(), vertical = 4.dp.scaled()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 최소화(−): 전체를 작은 핸들로 접는다.
+        ControlIcon(
+            label = stringResource(R.string.overlay_minimize),
+            contentDesc = stringResource(R.string.overlay_minimize_desc),
+            color = SubTextColor,
+            onClick = onMinimize,
+        )
+        ControlDivider()
+        // 형식 빠른 토글(P20 통합).
+        FormatSegment(stringResource(R.string.format_single), selected = !isDoubles) { onSelectFormat(false) }
+        FormatSegment(stringResource(R.string.format_doubles), selected = isDoubles) { onSelectFormat(true) }
+        ControlDivider()
+        // 검색(🔍): 카드가 없어도 손으로 포켓몬을 띄운다.
+        ControlIcon(
+            label = stringResource(R.string.overlay_manual_search),
+            contentDesc = stringResource(R.string.overlay_manual_search_desc),
+            color = AccentColor,
+            onClick = onSearch,
+        )
+        // 보정(⃞): 인식 실패 현장에서 즉시 ROI 를 맞춘다.
+        ControlIcon(
+            label = stringResource(R.string.overlay_calibrate_icon),
+            contentDesc = stringResource(R.string.overlay_calibrate_desc),
+            color = AccentColor,
+            onClick = onCalibrate,
+        )
+        // 진단 ON/OFF: 원인(빈 텍스트 vs 미매칭)을 현장에서 바로 켠다.
+        Text(
+            stringResource(R.string.overlay_diag_toggle),
+            color = if (diagOn) Color.White else SubTextColor,
+            fontSize = 11.sp.scaled(),
+            fontWeight = if (diagOn) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier
+                .background(
+                    if (diagOn) AccentColor.copy(alpha = 0.85f) else Color(0x33_FFFFFF),
+                    RoundedCornerShape(6.dp.scaled()),
+                )
+                .clickable(onClick = onToggleDiag)
+                .padding(horizontal = 8.dp.scaled(), vertical = 3.dp.scaled()),
+        )
+    }
+}
+
+/** 컨트롤 바의 아이콘 버튼(터치 영역만 clickable — 그 밖은 게임 통과). */
+@Composable
+private fun ControlIcon(
+    label: String,
+    contentDesc: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Text(
+        label,
+        color = color,
+        fontSize = 15.sp.scaled(),
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp.scaled(), vertical = 2.dp.scaled()),
+    )
+}
+
+/** 컨트롤 바 구획 구분자(얇은 세로선 대체 — 반투명 점/여백). */
+@Composable
+private fun ControlDivider() {
+    Text("·", color = Color(0x55_FFFFFF), fontSize = 13.sp.scaled())
+}
+
+/**
+ * [P21] 최소화 핸들. 오버레이를 거의 안 가리는 작은 드래그 가능한 버튼(점/아이콘 하나).
+ * 탭하면 복원(펼침), 드래그로 이동(위치는 컨트롤 바/카드와 공유 저장). 화면 모서리에 붙일 수 있다.
+ * 창=카드 전략 보존: 이 작은 원만 터치를 받고 나머지는 게임으로 통과한다.
+ */
+@Composable
+fun MinimizedHandle(
+    dragModifier: Modifier,
+    onRestore: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .then(dragModifier)
+            .background(ControlBarBg, RoundedCornerShape(24.dp.scaled()))
+            .clickable(onClick = onRestore)
+            .padding(horizontal = 10.dp.scaled(), vertical = 8.dp.scaled()),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            stringResource(R.string.overlay_handle_dot),
+            color = AccentColor,
+            fontSize = 16.sp.scaled(),
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

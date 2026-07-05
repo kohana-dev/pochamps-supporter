@@ -83,6 +83,13 @@
     <string name="overlay_force_rescan_desc">重新扫描</string>
     <string name="overlay_expand">展开</string>
     <string name="overlay_collapse">收起</string>
+    <!-- P21: 常驻控制栏 -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">最小化</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">校准名称区域</string>
+    <string name="overlay_diag_toggle">诊断</string>
     <string name="overlay_section_stats">种族值</string>
     <string name="overlay_section_total">总和</string>
     <string name="overlay_section_matchup">防御属性克制</string>

@@ -83,6 +83,13 @@
     <string name="overlay_force_rescan_desc">Erneut scannen</string>
     <string name="overlay_expand">Ausklappen</string>
     <string name="overlay_collapse">Einklappen</string>
+    <!-- P21: dauerhaft sichtbare Steuerleiste -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">Minimieren</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">Namensbereich kalibrieren</string>
+    <string name="overlay_diag_toggle">Diag.</string>
     <string name="overlay_section_stats">Basiswerte</string>
     <string name="overlay_section_total">Gesamt</string>
     <string name="overlay_section_matchup">Defensive Matchups</string>

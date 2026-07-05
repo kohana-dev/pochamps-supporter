@@ -88,6 +88,25 @@ class OverlayRenderer(
     /** 오버레이 형식 토글 초기 상태(P20, 설정값). */
     initialFormat: com.pochamps.supporter.data.BattleFormat =
         com.pochamps.supporter.data.BattleFormat.DOUBLES,
+    /**
+     * 이름 영역 보정(ROI) 진입(P21). 컨트롤 바의 보정 아이콘 탭 → 서비스가 ACTION_CALIBRATE 재사용으로
+     * 보정 오버레이를 연다(인식 실패 현장에서 즉시 ROI 맞춤). 기본 no-op.
+     */
+    onCalibrate: () -> Unit = {},
+    /**
+     * 진단 ON/OFF 즉시 토글(P21). 컨트롤 바의 진단 버튼 탭 → 서비스가 설정 영속 + 스트립 표시 반영.
+     * 인자는 새 상태(true=켬). 기본 no-op.
+     */
+    onToggleDiag: (Boolean) -> Unit = {},
+    /**
+     * 최소화 상태 영속 저장소(P21). 컨트롤 바 최소화/복원 시 SharedPreferences 로 상태를 남긴다.
+     * 재시작 후에도 최소화 상태가 유지된다. 기본은 인메모리(비영속) — 서비스가 실제 store 주입.
+     */
+    private val minimizeStore: MinimizeStore = object : MinimizeStore {
+        private var s = MinimizeState.DEFAULT
+        override fun load() = s
+        override fun save(state: MinimizeState) { s = state }
+    },
 ) : LifecycleOwner, SavedStateRegistryOwner {
 
     private val windowManager =
@@ -199,13 +218,42 @@ class OverlayRenderer(
     /** 형식 토글 콜백(P20). 서비스가 주입. */
     private var onSelectFormat: (com.pochamps.supporter.data.BattleFormat) -> Unit = {}
 
+    /** 보정 진입 콜백(P21). 서비스가 주입(ACTION_CALIBRATE). */
+    private var onCalibrate: () -> Unit = {}
+
+    /** 진단 ON/OFF 토글 콜백(P21). 서비스가 주입(설정 영속 + 스트립 반영). */
+    private var onToggleDiag: (Boolean) -> Unit = {}
+
+    /**
+     * 최소화 상태(P21). true=최소화(작은 핸들만), false=펼침(컨트롤 바+카드).
+     * 초기값은 영속 저장소에서 로드 → 재시작 후에도 유지.
+     */
+    private val minimized = mutableStateOf(false)
+
     init {
         savedStateController.performRestore(null)
         this.onRestart = onRestart
         this.onExit = onExit
         this.onSelectFormat = onSelectFormat
+        this.onCalibrate = onCalibrate
+        this.onToggleDiag = onToggleDiag
         scale.value = OverlayScale.snap(initialScale)
         battleFormat.value = initialFormat
+        minimized.value = minimizeStore.load().minimized
+    }
+
+    /** 최소화 ↔ 복원 토글(P21). 상태를 영속 저장 후 다음 렌더에 반영. */
+    private fun toggleMinimized() {
+        val next = MinimizeState(minimized.value).toggled()
+        minimized.value = next.minimized
+        minimizeStore.save(next)
+    }
+
+    /** 진단 상태를 토글하고 콜백 통지(P21, 컨트롤 바 진단 버튼). */
+    private fun toggleDiagnostics() {
+        val next = !diagEnabled.value
+        diagEnabled.value = next
+        onToggleDiag(next)
     }
 
     /**
@@ -598,7 +646,33 @@ class OverlayRenderer(
         val diag by diagState
         val diagVisible = diagOn && diag != null
         val captureOn by captureActive
-        // 캡처 활성(P20)이면 카드가 없어도 형식 빠른 토글을 위해 렌더한다.
+        val isMinimized by minimized
+
+        val dragModForHandle = Modifier.pointerInput(Unit) {
+            detectDragGestures(
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount.x, dragAmount.y)
+                },
+                onDragEnd = { persistPosition() },
+            )
+        }
+
+        // P21: 최소화 상태 — 캡처가 켜져 있으면 카드 유무와 무관하게 작은 핸들만 렌더(거의 안 가림).
+        // 캡처가 꺼진 상태(데모 종료 등)면 핸들도 숨겨 화면을 완전히 비운다.
+        if (isMinimized) {
+            if (!captureOn) return
+            val scaleValue by scale
+            CompositionLocalProvider(LocalOverlayScale provides scaleValue) {
+                MinimizedHandle(
+                    dragModifier = dragModForHandle,
+                    onRestore = { toggleMinimized() },
+                )
+            }
+            return
+        }
+
+        // 캡처 활성(P20/P21)이면 카드가 없어도 컨트롤 바(형식/검색/보정/진단/최소화)를 위해 렌더한다.
         if (slotOrder.isEmpty() && !hintVisible && !diagVisible && !captureOn) return
 
         // 자동 축소 타이머: 주기적으로 확장 시각을 확인해 무조작 N초 경과 슬롯을 CARD 로 축소.
@@ -681,20 +755,32 @@ class OverlayRenderer(
         diag: com.pochamps.supporter.capture.DiagState?,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 배틀 형식 빠른 토글(P20, 싱글/더블). 대전마다 즉시 전환 — 상단 소형 세그먼트.
-            // 세그먼트만 터치를 받고 그 밖은 게임으로 통과(창=카드 전략 보존). 실캡처 세션에서만 노출.
+            // 항상 보이는 컨트롤 바(P21): 최소화 · 형식(P20 통합) · 검색 · 보정 · 진단.
+            // 인식 실패로 카드가 없어도(slotOrder.isEmpty) 캡처가 켜져 있으면 이 바가 진입점을 유지한다.
+            // 바만 터치를 받고 그 밖은 게임으로 통과(창=카드 전략 보존). 실캡처/데모 세션에서만 노출.
             val fmt by battleFormat
             val captureOn by captureActive
+            val diagNow by diagEnabled
             if (captureOn) {
-                FormatToggle(
+                ControlBar(
                     isDoubles = fmt == com.pochamps.supporter.data.BattleFormat.DOUBLES,
-                    onSelect = { doubles ->
+                    diagOn = diagNow,
+                    dragModifier = dragMod,
+                    onMinimize = { toggleMinimized() },
+                    onSelectFormat = { doubles ->
                         onSelectFormat(
                             if (doubles) com.pochamps.supporter.data.BattleFormat.DOUBLES
                             else com.pochamps.supporter.data.BattleFormat.SINGLES,
                         )
                     },
-                    dragModifier = dragMod,
+                    // 카드가 없어도 검색: ControlSearch 로 핀 대상 슬롯을 정해 검색 시트를 연다.
+                    onSearch = {
+                        val target = ControlSearch.targetSlot(fmt, slotOrder.toSet())
+                        captureCardBounds()
+                        openSheet.value = SheetState.Search(target, "")
+                    },
+                    onCalibrate = { onCalibrate() },
+                    onToggleDiag = { toggleDiagnostics() },
                 )
             }
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.

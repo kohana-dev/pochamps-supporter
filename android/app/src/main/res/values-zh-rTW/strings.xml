@@ -83,6 +83,13 @@
     <string name="overlay_force_rescan_desc">重新掃描</string>
     <string name="overlay_expand">展開</string>
     <string name="overlay_collapse">收合</string>
+    <!-- P21: 常駐控制列 -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">最小化</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">校準名稱區域</string>
+    <string name="overlay_diag_toggle">診斷</string>
     <string name="overlay_section_stats">種族值</string>
     <string name="overlay_section_total">總和</string>
     <string name="overlay_section_matchup">防禦屬性相剋</string>

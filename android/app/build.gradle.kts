@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.1.6" // 표시 언어를 캡처 언어와 분리 + 9개 언어 UI(P19)
+        versionCode = 9
+        versionName = "0.1.7" // 항상 보이는 오버레이 컨트롤 바 — 최소화+검색+보정 (P21)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

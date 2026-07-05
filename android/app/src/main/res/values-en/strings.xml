@@ -110,6 +110,13 @@
     <string name="overlay_force_rescan_desc">Re-scan</string>
     <string name="overlay_expand">Expand</string>
     <string name="overlay_collapse">Collapse</string>
+    <!-- P21: always-on control bar -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">Minimize</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">Calibrate name area</string>
+    <string name="overlay_diag_toggle">Diag</string>
     <string name="overlay_section_stats">Base stats</string>
     <string name="overlay_section_total">Total</string>
     <string name="overlay_section_matchup">Defensive matchups</string>

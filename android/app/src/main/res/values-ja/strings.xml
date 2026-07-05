@@ -108,6 +108,13 @@
     <string name="overlay_force_rescan_desc">再認識</string>
     <string name="overlay_expand">展開</string>
     <string name="overlay_collapse">折りたたむ</string>
+    <!-- P21: 常時表示のコントロールバー -->
+    <string name="overlay_minimize">−</string>
+    <string name="overlay_minimize_desc">最小化</string>
+    <string name="overlay_handle_dot">▟</string>
+    <string name="overlay_calibrate_icon">⃞</string>
+    <string name="overlay_calibrate_desc">名前領域を調整</string>
+    <string name="overlay_diag_toggle">診断</string>
     <string name="overlay_section_stats">種族値</string>
     <string name="overlay_section_total">合計</string>
     <string name="overlay_section_matchup">防御相性</string>

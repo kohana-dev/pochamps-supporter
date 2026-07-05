@@ -220,6 +220,12 @@ class CaptureService : Service() {
             // 배틀 형식 빠른 토글(P20). 탭 → ROI/사용률/슬롯 전환.
             initialFormat = captureFormat,
             onSelectFormat = { fmt -> onFormatToggled(fmt) },
+            // 컨트롤 바 보정 진입(P21): ACTION_CALIBRATE 재사용 → 인식 실패 현장에서 즉시 ROI 맞춤.
+            onCalibrate = { showCalibrationOverlay() },
+            // 컨트롤 바 진단 ON/OFF(P21): 설정 영속. 오버레이 스트립 표시는 렌더러가 즉시 반영.
+            onToggleDiag = { enabled -> AppSettings(this).diagnosticsEnabled = enabled },
+            // 최소화 상태 영속(P21): 재시작 후에도 최소화 유지.
+            minimizeStore = com.pochamps.supporter.overlay.PrefsMinimizeStore(this),
         )
         renderer.show()
         // 진단 모드(P14) 설정 반영 — 켜져 있으면 진단 스트립 표시.
