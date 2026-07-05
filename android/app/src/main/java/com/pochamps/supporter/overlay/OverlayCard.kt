@@ -279,6 +279,62 @@ fun CaptureStoppedCard(
 }
 
 /**
+ * 캡처 건강 안내 카드(K1 자동 진단, P17). DESIGN.md 1장 K1 최대 리스크의 앱 내 고지.
+ *  - BLACK_SCREEN: FLAG_SECURE 로 캡처가 차단된 것으로 보임(검은 화면). 이 게임에선 오버레이 불가.
+ *  - NO_FRAMES: 화면 프레임을 못 받음(캡처 권한/재시작 확인). "재시작" 진입점(P7 재동의 재사용).
+ * Healthy 복귀 시 호출부가 이 카드를 걷는다(자동 해제).
+ */
+@Composable
+fun CaptureHealthCard(
+    health: com.pochamps.supporter.capture.CaptureHealth.Health,
+    onRestart: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isBlack = health == com.pochamps.supporter.capture.CaptureHealth.Health.BLACK_SCREEN
+    val titleRes = if (isBlack) R.string.overlay_health_black_title
+    else R.string.overlay_health_noframes_title
+    val bodyRes = if (isBlack) R.string.overlay_health_black_body
+    else R.string.overlay_health_noframes_body
+    // 검정(차단)은 배경색을 경고톤으로, 프레임미수신은 정보톤으로 구분.
+    val cardColor = if (isBlack) Color(0xF2_3A1F1F) else Color(0xE6_1A1A1A)
+
+    Column(
+        modifier = modifier
+            .widthIn(min = 200.dp.scaled(), max = 320.dp.scaled())
+            .background(cardColor, RoundedCornerShape(12.dp.scaled()))
+            .padding(horizontal = 14.dp.scaled(), vertical = 12.dp.scaled()),
+        verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(titleRes), color = ChipTextColor,
+                fontSize = 14.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            // 닫기(오탐 대비 사용자 수동 해제). Healthy 복귀 시엔 호출부가 자동 해제.
+            Text(
+                stringResource(R.string.sheet_close), color = AccentColor,
+                fontSize = 12.sp.scaled(),
+                modifier = Modifier.clickable(onClick = onDismiss),
+            )
+        }
+        Text(stringResource(bodyRes), color = SubTextColor, fontSize = 12.sp.scaled())
+        // NoFrames 는 재시작(재동의)이 회복 경로 → 버튼 노출. BlackScreen 은 재시작해도 소용없으므로 미노출.
+        if (!isBlack) {
+            Text(
+                stringResource(R.string.overlay_capture_restart),
+                color = AccentColor, fontSize = 13.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .background(Color(0x33_8AB4F8), RoundedCornerShape(8.dp.scaled()))
+                    .clickable(onClick = onRestart)
+                    .padding(horizontal = 12.dp.scaled(), vertical = 6.dp.scaled()),
+            )
+        }
+    }
+}
+
+/**
  * "배틀명 표시 ON" 1회 안내 배너(DESIGN.md 5장 이름 미표시).
  * 장시간 미인식 시 노출. 탭하면 닫힘([onDismiss]).
  */
@@ -345,6 +401,15 @@ fun DiagnosticStrip(state: com.pochamps.supporter.capture.DiagState) {
         Text(
             com.pochamps.supporter.capture.DiagState.formatLastSeen(state),
             color = SubTextColor, fontSize = 10.sp.scaled(),
+        )
+        // 캡처 건강 한 줄(K1 자동 진단, P17). 정상=회색, 이상=경고색.
+        val healthColor = when (state.health) {
+            com.pochamps.supporter.capture.CaptureHealth.Health.HEALTHY -> SubTextColor
+            else -> NegDelta
+        }
+        Text(
+            com.pochamps.supporter.capture.DiagState.formatHealth(state),
+            color = healthColor, fontSize = 10.sp.scaled(),
         )
     }
 }

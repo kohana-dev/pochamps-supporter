@@ -112,6 +112,12 @@
     <string name="overlay_capture_restart">▶ 재시작</string>
     <string name="overlay_battlenames_hint">이름이 안 보이나요? 게임 설정에서 \'배틀명 표시\'를 켜주세요.</string>
 
+    <!-- 캡처 건강 안내(K1 자동 진단, P17) -->
+    <string name="overlay_health_black_title">화면 캡처가 차단됨</string>
+    <string name="overlay_health_black_body">이 게임이 화면 캡처를 막고 있는 것 같습니다(검은 화면). 여기서는 오버레이를 사용할 수 없습니다.</string>
+    <string name="overlay_health_noframes_title">화면 프레임 없음</string>
+    <string name="overlay_health_noframes_body">화면 프레임을 받지 못했습니다. 캡처 권한을 확인하고 다시 시작해 주세요.</string>
+
     <!-- ===== 후보/검색 시트 ===== -->
     <string name="sheet_candidate_title">어느 포켓몬인가요?</string>
     <string name="sheet_search_title">이름으로 검색</string>

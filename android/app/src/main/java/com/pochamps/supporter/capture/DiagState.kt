@@ -51,6 +51,8 @@ data class DiagState(
     val ocrRunsPerSec: Double = 0.0,
     val lastRecognitionAtMs: Long = 0L,
     val nowMs: Long = 0L,
+    /** 캡처 건강 상태(K1 자동 진단, P17). 진단 스트립 한 줄로 노출. */
+    val health: CaptureHealth.Health = CaptureHealth.Health.HEALTHY,
 ) {
     companion object {
         /** OCR 원문/이름 한 줄이 너무 길면 자른다(스트립 폭 보호). */
@@ -82,6 +84,13 @@ data class DiagState(
         /** OCR 빈도 문구. 예: `OCR 1.1회/s`. */
         fun formatRate(state: DiagState): String =
             "OCR %.1f회/s".format(state.ocrRunsPerSec)
+
+        /** 캡처 건강 한 줄(K1 자동 진단). 예: `캡처: 정상` / `캡처: 검은화면(차단?)` / `캡처: 프레임없음`. */
+        fun formatHealth(state: DiagState): String = "캡처: " + when (state.health) {
+            CaptureHealth.Health.HEALTHY -> "정상"
+            CaptureHealth.Health.BLACK_SCREEN -> "검은화면(차단?)"
+            CaptureHealth.Health.NO_FRAMES -> "프레임없음"
+        }
 
         /** 문자열 클립(말줄임). */
         private fun clip(s: String): String =

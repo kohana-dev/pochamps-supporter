@@ -1160,3 +1160,51 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 
 ### 남은 실기기 전용 항목(불변)
 - 실기기 가로 회전 실시간 재배치·롱프레스 종료 촉감 · P15 이하 잔여 항목 동일.
+
+## P17 — 캡처 건강 모니터: FLAG_SECURE 검은화면 / 프레임미수신 자동 감지 (K1 자동화, v0.1.3) ✅ 완료 (2026-07-05)
+
+> DESIGN.md 1장 K1(최대 리스크)을 **"실기기 수동 확인"에서 "앱이 자동 감지+고지"로 상향**.
+> 게임이 `FLAG_SECURE` 로 캡처를 막으면 MediaProjection 은 검은/균일 저휘도 프레임만 준다. 기존엔
+> 앱이 조용히 아무 카드도 안 띄워 사용자가 원인을 몰랐다. 이제 자동 분류해 명확히 고지한다.
+
+### 기능 — 캡처 건강 분류(순수 JVM) + 사용자 고지 UX
+- `capture/CaptureHealth.kt`(신규, 순수 JVM): 프레임 휘도/도착시각/프레임카운트 → 3분류.
+  - **NoFrames**: 캡처 시작 후(또는 마지막 프레임 이후) `noFramesMs`=**4s** 동안 프레임 0건 → 캡처 파이프 이상.
+  - **BlackScreen**: 프레임 평균 휘도 ≤ `blackLumaThreshold`=**18**(0..255)가 `blackHoldMs`=**2.5s** **연속 지속** → FLAG_SECURE 강한 신호.
+  - **Healthy**: 정상(밝음 + 프레임 갱신).
+  - **오탐 억제**: 밝은 프레임 1장이라도 오면 어두운-구간 타이머 리셋 → 로딩/전환 순간의 짧은 검정 무시. 임계/지속시간 보수적(정상 대전 화면은 훨씬 밝음).
+  - `onFrame`/`evaluate` 는 상태가 **바뀔 때만** 새 상태 반환(중복 억제). @Volatile current 읽기.
+- 배선: `RecognitionPipeline.submitFrame`(경량 캡처 콜백, ~초당 3회)에서 프레임 전체 다운샘플 평균 휘도를 `CaptureHealth.onFrame` 에 공급.
+  - **버그픽스(실측 발견)**: 처음엔 `processFrame` 에서 휘도를 쟀는데, OCR 이 프레임당 수 초 걸려 `processFrame` 이 드물게 돌아(그 주기가 4s 초과) **정상인데 NoFrames 오판**. → OCR 병목 **이전** 지점(submitFrame)으로 이동해 해결.
+  - 서비스가 `HEALTH_POLL_MS`=1s 마다 `evaluateHealth(now)` 폴링 → 프레임이 아예 안 와도 NoFrames 판정.
+- 사용자 고지 UX(`overlay/OverlayCard.kt` `CaptureHealthCard` + `OverlayRenderer.updateCaptureHealth`):
+  - **BlackScreen** → 경고톤 카드 "화면 캡처가 차단됨 / 이 게임이 화면 캡처를 막는 것 같습니다(검은 화면). 여기서는 오버레이를 사용할 수 없습니다." (재시작 버튼 없음 — FLAG_SECURE 는 재시작해도 무용).
+  - **NoFrames** → 정보톤 카드 "화면 프레임 없음 / 캡처 권한 확인·재시작" + **재시작 버튼**(P7 재동의 흐름 `onRestart` 재사용).
+  - **Healthy 복귀** → 카드 자동 해제. 사용자 수동 닫기(오탐 대비)도 제공.
+  - 캡처 중단(showCaptureStopped) 카드가 뜨면 건강 안내는 걷음(우선순위).
+  - 알림 본문도 상태 반영(`buildNotification(text)` 파라미터화 → `notify` 재발행).
+  - ko/en 문구(strings.xml + values-en) 4종.
+- P14 진단 스트립 일관: `DiagState.health` + `formatHealth` → 스트립에 "캡처: 정상/검은화면(차단?)/프레임없음" 한 줄 추가(정상=회색, 이상=경고색).
+
+### 테스트 (+12, 순수 JVM)
+- `CaptureHealthTest`: NoFrames(유예/프레임끊김/복귀), BlackScreen(지속·경계·복귀), 짧은검정 오탐억제, 임계경계, 동일상태 중복억제, averageLuma, reset — 12개.
+
+### 에뮬레이터 E2E (실측 — AVD `Kohana_QA_API_35`, 가로 1280x720)
+- 연속 프레임이 필요해(정적 이미지는 에뮬 미러가 새 프레임을 안 줌) **루프 재생 영상**으로 구동: 배틀 영상(밝음)·검은 영상(ffmpeg color=black) 을 앱 내부 files 로 넣고 `SampleImageActivity --es vid` 로 재생.
+- (a) **Healthy**: 배틀 영상 → 안내 카드 없음, 진단 스트립 "캡처: 정상". (`field_samples/p17/a_healthy_video.png`) — 부수로 갸라도스 실매칭(editDistance=1)도 확인.
+- (b) **BlackScreen**: 검은 영상 → "Screen capture blocked" 경고톤 카드(재시작 버튼 없음). (`field_samples/p17/b_blackscreen.png`)
+- (c) **복귀**: 검정→배틀 영상 → 안내 카드 자동 해제, 진단 스트립 "캡처: 정상" 복귀. (`field_samples/p17/c_recovered.png`)
+- (d) **NoFrames**: 프레임이 끊긴 구간에서 "No screen frames / Restart" 카드가 실제로 렌더됨을 첫 런 로그로 확인. 에뮬에서 미러가 마지막 프레임을 계속 밀어 깔끔한 격리가 어려워, 로직은 유닛테스트(경계·복귀)로 입증(태스크 허용 범위).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 184/184, failures 0**(P16 172 + P17 12: CaptureHealthTest).
+- `:app:assembleRelease`(R8, arm64) → 성공. **release 데이터 URL 불변**(kohana-dev.github.io/pochamps-supporter). **versionCode 5 / versionName 0.1.3**.
+
+### 코드 변경 요약
+- `capture/CaptureHealth.kt`(신규, 순수), `capture/RecognitionPipeline.kt`(submitFrame 휘도 공급·evaluateHealth·onHealth·reset), `capture/CaptureService.kt`(onHealth 배선·건강 워치독 폴링·알림 본문 갱신), `capture/DiagState.kt`(health 필드·formatHealth).
+- `overlay/OverlayRenderer.kt`(updateCaptureHealth·건강 카드 우선 렌더·중단 시 걷기), `overlay/OverlayCard.kt`(CaptureHealthCard·진단 스트립 건강 줄).
+- strings(ko/en): 캡처 차단/프레임없음 4종.
+- build.gradle.kts: versionCode 5 / 0.1.3.
+
+### 남은 실기기 전용 항목(불변)
+- 실기기에서 실제 FLAG_SECURE 게임(포챔스 정식판)으로 BlackScreen 자동감지 최종 확인. P16 이하 잔여 항목 동일.

@@ -360,6 +360,10 @@ class CaptureService : Service() {
                 onDiag = { state ->
                     mainHandler.post { overlay?.updateDiag(state) }
                 },
+                // 캡처 건강 상태 변화(K1 자동 진단, P17) → 오버레이 안내 + 알림 반영(메인 스레드).
+                onHealth = { h ->
+                    mainHandler.post { handleCaptureHealth(h) }
+                },
             )
             pipe.start()
             pipeline = pipe
@@ -374,7 +378,10 @@ class CaptureService : Service() {
 
             manager.start(vd) { bitmap, ts -> pipe.submitFrame(bitmap, ts) }
             pipelineStartedAt = android.os.SystemClock.uptimeMillis()
-            mainHandler.post { scheduleBattleNamesWatchdog() }
+            mainHandler.post {
+                scheduleBattleNamesWatchdog()
+                scheduleHealthWatchdog()
+            }
             Log.i(TAG, "파이프라인 시작 완료")
         }
     }
@@ -394,6 +401,41 @@ class CaptureService : Service() {
                 overlay?.showBattleNamesHintOnce()
             }
         }, NO_MATCH_HINT_MS)
+    }
+
+    /**
+     * 캡처 건강 워치독(K1 자동 진단, P17). 프레임이 아예 안 오면(파이프 정지) 프레임 콜백만으로는
+     * NoFrames 를 판정할 수 없으므로, 주기적으로 파이프라인에 현재 시각을 넘겨 재평가시킨다.
+     * 상태 변화가 있으면 파이프라인이 onHealth 로 알린다. 서비스가 살아 있는 동안 반복.
+     */
+    private fun scheduleHealthWatchdog() {
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                val pipe = pipeline ?: return
+                pipe.evaluateHealth(android.os.SystemClock.uptimeMillis())
+                mainHandler.postDelayed(this, HEALTH_POLL_MS)
+            }
+        }, HEALTH_POLL_MS)
+    }
+
+    /**
+     * 캡처 건강 상태 변화 처리(K1 자동 진단, P17). 메인 스레드.
+     * 오버레이 안내 카드를 갱신하고, 알림 문구도 상태에 맞게 바꾼다(상태바에서도 원인 인지).
+     */
+    private fun handleCaptureHealth(h: CaptureHealth.Health) {
+        overlay?.updateCaptureHealth(h)
+        val textRes = when (h) {
+            CaptureHealth.Health.BLACK_SCREEN -> com.pochamps.supporter.R.string.overlay_health_black_title
+            CaptureHealth.Health.NO_FRAMES -> com.pochamps.supporter.R.string.overlay_health_noframes_title
+            CaptureHealth.Health.HEALTHY -> com.pochamps.supporter.R.string.notif_text
+        }
+        updateNotificationText(getString(textRes))
+    }
+
+    /** 상시 알림 본문만 갱신(건강 상태 반영). 채널/액션은 유지. */
+    private fun updateNotificationText(text: String) {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        runCatching { nm.notify(NOTIF_ID, buildNotification(text)) }
     }
 
     // --- 알림/FGS ---
@@ -440,7 +482,9 @@ class CaptureService : Service() {
         nm.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(
+        contentText: String = getString(com.pochamps.supporter.R.string.notif_text),
+    ): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, CHANNEL_ID)
         else
@@ -467,7 +511,7 @@ class CaptureService : Service() {
 
         return builder
             .setContentTitle(getString(com.pochamps.supporter.R.string.notif_title))
-            .setContentText(getString(com.pochamps.supporter.R.string.notif_text))
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setOngoing(true)
             .addAction(exitAction)
@@ -558,6 +602,9 @@ class CaptureService : Service() {
 
         /** 이 시간(ms) 동안 인식 성공이 한 번도 없으면 "배틀명 표시 ON" 배너 1회 노출. */
         private const val NO_MATCH_HINT_MS = 20_000L
+
+        /** 캡처 건강 재평가 폴링 주기(ms, K1 자동 진단). NoFrames 판정을 프레임 없이도 갱신. */
+        private const val HEALTH_POLL_MS = 1_000L
 
         /** MediaProjection 동의 결과를 담아 서비스를 시작하는 Intent. */
         fun startIntent(context: Context, resultCode: Int, resultData: Intent): Intent =

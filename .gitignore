@@ -28,3 +28,7 @@ field_samples/video/*.mp4
 
 # 웹 수집 게임 스크린샷 — 로컬 검증 전용(공개 저장소 재배포 금지)
 android/app/src/androidTest/assets/field_samples/
+
+# P17: 실게임 영상 프레임이 담긴 실측 스크린샷(로컬 검증 전용, 공개 재배포 금지)
+field_samples/p17/a_healthy_video.png
+field_samples/p17/c_recovered.png

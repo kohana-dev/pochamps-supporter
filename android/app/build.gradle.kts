@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.1.2" // 오버레이 UX 3종: 카드 크기 조절 · 가로 후보 flyout · 앱 종료(P16)
+        versionCode = 5
+        versionName = "0.1.3" // 캡처 건강 모니터: FLAG_SECURE 검은화면 / 프레임미수신 자동 감지(P17)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

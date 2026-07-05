@@ -165,6 +165,13 @@ class OverlayRenderer(
     /** 최신 진단 스냅샷(진단 스트립 표시용). null=아직 없음. */
     private val diagState = mutableStateOf<com.pochamps.supporter.capture.DiagState?>(null)
 
+    /**
+     * 캡처 건강 상태(K1 자동 진단, P17). null=정상(안내 없음).
+     * BLACK_SCREEN=FLAG_SECURE 차단 안내, NO_FRAMES=프레임 미수신 안내. Healthy 복귀 시 null 로 해제.
+     */
+    private val captureHealth =
+        mutableStateOf<com.pochamps.supporter.capture.CaptureHealth.Health?>(null)
+
     init {
         savedStateController.performRestore(null)
         this.onRestart = onRestart
@@ -269,6 +276,7 @@ class OverlayRenderer(
         slotOrder.clear()
         openSheet.value = null
         showBattleNamesHint.value = false
+        captureHealth.value = null // 중단 카드가 우선 — 건강 안내는 걷는다.
         captureStopped.value = true
     }
 
@@ -293,6 +301,18 @@ class OverlayRenderer(
     /** 진단 스냅샷 갱신(파이프라인 콜백 → 메인 스레드). 진단 모드 off 여도 저장만(표시 안 함). */
     fun updateDiag(state: com.pochamps.supporter.capture.DiagState) {
         diagState.value = state
+    }
+
+    /**
+     * 캡처 건강 상태 갱신(K1 자동 진단, P17). 파이프라인 → 서비스 → 메인 스레드.
+     *  - HEALTHY → 안내 카드 자동 해제(null).
+     *  - BLACK_SCREEN → FLAG_SECURE 차단 안내 카드.
+     *  - NO_FRAMES → 프레임 미수신 안내 카드(재시작 진입점).
+     * 캡처 중단(showCaptureStopped) 상태에서는 그 카드가 우선이므로 건강 안내를 덮지 않는다.
+     */
+    fun updateCaptureHealth(h: com.pochamps.supporter.capture.CaptureHealth.Health) {
+        captureHealth.value =
+            if (h == com.pochamps.supporter.capture.CaptureHealth.Health.HEALTHY) null else h
     }
 
     fun destroy() {
@@ -507,6 +527,18 @@ class OverlayRenderer(
         // 캡처 중단 상태 카드(포켓몬 카드보다 우선). 단독 렌더.
         if (captureStopped.value) {
             CaptureStoppedCard(onRestart = { onRestart() })
+            return
+        }
+
+        // 캡처 건강 안내 카드(K1 자동 진단, P17). 검정/프레임미수신 시 원인을 명확히 고지.
+        // 포켓몬 카드보다 우선(캡처가 사실상 무용한 상태이므로 다른 카드는 신뢰할 수 없음).
+        val healthState by captureHealth
+        healthState?.let { h ->
+            CaptureHealthCard(
+                health = h,
+                onRestart = { onRestart() },
+                onDismiss = { captureHealth.value = null },
+            )
             return
         }
 

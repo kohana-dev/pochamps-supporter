@@ -52,8 +52,14 @@ class RecognitionPipeline(
     private val frameGate: FrameGate = FrameGate(),
     private val cropper: RoiCropper = RoiCropper(),
     private val decider: PipelineDecider = PipelineDecider(),
+    private val health: CaptureHealth = CaptureHealth(),
     private val onCardUpdate: (slot: Int, card: OverlayCardData, meta: SlotMeta) -> Unit,
     private val onDiag: (DiagState) -> Unit = {},
+    /**
+     * 캡처 건강 상태 변화 콜백(K1 자동 진단, P17). 상태가 바뀔 때만 호출된다.
+     * 서비스가 오버레이/알림 안내로 전달한다. 기본 no-op(상태 무관 경로 하위호환).
+     */
+    private val onHealth: (CaptureHealth.Health) -> Unit = {},
 ) {
 
     /** OCR 실행 빈도 계수기(진단 패널 "회/s"). 단일 워커 스레드에서만 접근. */
@@ -103,6 +109,8 @@ class RecognitionPipeline(
 
     /** 워커 시작. 서비스가 캡처 시작 시 1회 호출. */
     fun start() {
+        // 캡처 건강 모니터 시작(K1 자동 진단, P17). 이후 프레임/폴링으로 상태를 갱신한다.
+        health.start(android.os.SystemClock.uptimeMillis())
         scope.launch(Dispatchers.Default) {
             for (job in frameChannel) {
                 if (!isActive) break
@@ -129,6 +137,11 @@ class RecognitionPipeline(
      * Bitmap 은 콜백 후 재사용될 수 있으므로 방어적으로 복사해 소유권을 넘긴다.
      */
     fun submitFrame(bitmap: Bitmap, timestampMs: Long) {
+        // 캡처 건강 감시(K1 자동 진단, P17)는 **여기서**(경량 캡처 콜백, ~초당 3회) 공급한다.
+        // OCR 은 프레임당 수 초가 걸려 processFrame 은 드물게 돌므로(그 주기가 noFramesMs 를 넘겨
+        // 정상인데도 NoFrames 오판), 프레임 생존/휘도 신호는 OCR 병목 이전 지점에서 재야 정확하다.
+        runCatching { reportFrameHealth(bitmap, timestampMs) }
+
         // 재사용 Bitmap 을 워커가 나중에 읽으면 깨질 수 있으니 불변 복사본을 만든다.
         val copy = runCatching { bitmap.copy(Bitmap.Config.ARGB_8888, false) }.getOrNull() ?: return
         val sent = frameChannel.trySend(FrameJob(copy, timestampMs)).isSuccess
@@ -231,8 +244,30 @@ class RecognitionPipeline(
                 ocrRunsPerSec = rateMeter.ratePerSec(d.atMs),
                 lastRecognitionAtMs = lastMatchAtMs,
                 nowMs = d.atMs,
+                health = health.currentHealth(),
             ),
         )
+    }
+
+    /**
+     * 프레임 전체를 저해상 그레이로 다운샘플해 평균 휘도를 구하고 [CaptureHealth] 에 공급한다.
+     * 상태가 바뀌면 [onHealth] 로 서비스에 알린다(오버레이/알림 안내). 저비용(작은 격자 평균).
+     */
+    private fun reportFrameHealth(frame: Bitmap, timestampMs: Long) {
+        val pixels = IntArray(frame.width * frame.height)
+        frame.getPixels(pixels, 0, frame.width, 0, 0, frame.width, frame.height)
+        val gray = FrameGate.downsampleGray(pixels, frame.width, frame.height)
+        val avgLuma = CaptureHealth.averageLuma(gray)
+        health.onFrame(avgLuma, timestampMs)?.let { onHealth(it) }
+    }
+
+    /**
+     * 프레임이 안 와도(파이프 정지) NoFrames 를 판정하도록 서비스가 주기적으로 호출한다.
+     * 상태가 바뀌면 [onHealth] 로 알린다. 워커 밖(메인 핸들러)에서 호출될 수 있으나
+     * CaptureHealth 는 읽기/판정만 하고 변이는 원자적이라 안전.
+     */
+    fun evaluateHealth(nowMs: Long) {
+        health.evaluate(nowMs)?.let { onHealth(it) }
     }
 
     /** ROI 픽셀 영역을 읽어 FrameGate 용 다운샘플 그레이 서명을 만든다. */
@@ -246,6 +281,7 @@ class RecognitionPipeline(
     fun stop() {
         frameChannel.close()
         frameGate.reset()
+        health.reset()
         decider.reset()
         rateMeter.reset()
         slotDiags.clear()

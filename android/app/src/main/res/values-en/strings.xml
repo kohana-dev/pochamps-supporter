@@ -112,6 +112,12 @@
     <string name="overlay_capture_restart">▶ Restart</string>
     <string name="overlay_battlenames_hint">No names showing? Turn on \'Display Battle Names\' in the game settings.</string>
 
+    <!-- Capture health notice (K1 auto-diagnosis, P17) -->
+    <string name="overlay_health_black_title">Screen capture blocked</string>
+    <string name="overlay_health_black_body">This game appears to block screen capture (black screen). The overlay can\'t be used here.</string>
+    <string name="overlay_health_noframes_title">No screen frames</string>
+    <string name="overlay_health_noframes_body">No screen frames were received. Check capture permission and restart.</string>
+
     <!-- ===== Candidate / search sheets ===== -->
     <string name="sheet_candidate_title">Which Pokémon?</string>
     <string name="sheet_search_title">Search by name</string>
