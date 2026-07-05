@@ -201,8 +201,9 @@ class RecognitionPipeline(
     /** 크롭 하나를 OCR→매칭→판정→갱신. */
     private suspend fun processCrop(roiIndex: Int, crop: Bitmap) {
         try {
-            // [4] OCR — 모든 라인 추출(단일 pickNameLine 대신 전체 라인).
-            val lines = ocr.recognizeAllLines(crop)
+            // [4] OCR — 4개 스크립트 인식기를 병렬 실행해 모든 라인 추출(중복 제거) + 스크립트 태그(P31).
+            val tagged = ocr.recognizeTagged(crop)
+            val lines = tagged.map { it.text }
             // OCR 실행 빈도 계수(진단 패널 "회/s" — 발열/스로틀 판단).
             val nowMs = android.os.SystemClock.uptimeMillis()
             rateMeter.record(nowMs)
@@ -213,13 +214,15 @@ class RecognitionPipeline(
                 emitDiag(SlotDiag(roiIndex, ocrLines = emptyList(), matchedRoot = null, editDistance = null, atMs = nowMs))
                 return
             }
-            // [5] 매칭 — 라인들 중 최적 매칭(UI 텍스트는 사전 매칭이 걸러줌, ROI 강건화 P12).
+            // [5] 매칭 — 라인들 중 최적 매칭(UI 텍스트/엉뚱한 스크립트 garbage 는 사전 매칭이 걸러줌, P12/P31).
             val match = repository.matchBest(lines)
             if (DIAG) Log.i(TAG, "diag roi#$roiIndex match=$match")
 
-            // 진단 스냅샷(원문 라인 + 매칭 root/editDistance). 미매칭이면 root=null.
+            // 진단 스냅샷(원문 라인 + 매칭 root/editDistance + 어느 스크립트로 읽혔는지, P31). 미매칭이면 root=null.
             val matched = match as? com.pochamps.supporter.matching.MatchResult.Matched
             if (matched != null) lastMatchAtMs = nowMs
+            val matchedScripts = matched?.let { scriptTagFor(it, tagged) }
+            if (DIAG && matchedScripts != null) Log.i(TAG, "diag roi#$roiIndex matched='${matched.root}' script=[$matchedScripts]")
             emitDiag(
                 SlotDiag(
                     slot = roiIndex,
@@ -227,6 +230,7 @@ class RecognitionPipeline(
                     matchedRoot = matched?.root,
                     editDistance = matched?.editDistance,
                     atMs = nowMs,
+                    matchedScripts = matchedScripts,
                 ),
             )
 
@@ -322,8 +326,34 @@ class RecognitionPipeline(
 
     private data class FrameJob(val bitmap: Bitmap, val timestampMs: Long)
 
-    private companion object {
+    companion object {
         const val TAG = "RecognitionPipeline"
+
+        /**
+         * [P31] 매칭 결과가 어느 스크립트 인식기로 읽힌 라인에서 왔는지 태그를 만든다(진단용, 순수 로직).
+         * matchBest 는 "가장 잘 매칭된 라인"을 채택하므로, 그 라인을 tagged 목록에서 되짚어
+         * 스크립트 태그(예: "L"/"KL")를 조합한다.
+         *  - 채택 라인 판정: NameMatcher 와 동일한 정규화로 tagged 라인을 비교해 매칭 결과의 root 로
+         *    이어지는(= 재매칭 시 같은 root & 최소 editDistance) 라인을 찾는다. 확실치 않으면
+         *    editDistance 가 결과와 같은 첫 라인을 쓴다(근사).
+         * @return 스크립트 태그 문자열(예: "L", "KL"). 되짚기 실패 시 null.
+         */
+        fun scriptTagFor(
+            matched: com.pochamps.supporter.matching.MatchResult.Matched,
+            tagged: List<com.pochamps.supporter.ocr.TaggedLine>,
+        ): String? {
+            // 채택 라인 = 정규화가 matchedKey 와 같거나(완전일치), 그렇지 않으면 첫 번째 non-blank 라인 근사.
+            val key = com.pochamps.supporter.matching.NameMatcher.normalize(matched.matchedKey)
+            val exact = tagged.firstOrNull {
+                com.pochamps.supporter.matching.NameMatcher.normalize(it.text) == key
+            }
+            val line = exact ?: tagged.firstOrNull { it.text.isNotBlank() } ?: return null
+            if (line.scripts.isEmpty()) return null
+            // 스크립트 태그를 K,J,C,L 고정 순서로 정렬해 결정적 문자열 생성.
+            return com.pochamps.supporter.ocr.OcrScript.entries
+                .filter { it in line.scripts }
+                .joinToString("") { it.tag }
+        }
 
         /**
          * P10 E2E 진단 로그 토글. debug 빌드에서 BuildConfig.DEBUG 로 켜져, 프레임별 OCR 라인/매칭을

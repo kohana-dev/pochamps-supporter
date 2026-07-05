@@ -264,7 +264,6 @@ private fun SettingsSection() {
     val context = LocalContext.current
     val settings = remember { AppSettings(context) }
     var displayLang by remember { mutableStateOf(settings.displayLang) }
-    var captureLang by remember { mutableStateOf(settings.language) }
     var roiResetDone by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -294,28 +293,8 @@ private fun SettingsSection() {
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            // (B) 게임 화면 언어(캡처/OCR 용) — 표시 언어와 분리. OCR 이 읽을 언어에 맞춘다.
-            Text(stringResource(R.string.settings_language_title), style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                stringResource(R.string.settings_language_desc),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppSettings.LANGUAGE_LABELS.forEach { (code, label) ->
-                    FilterChip(
-                        selected = captureLang == code,
-                        onClick = {
-                            settings.language = code
-                            captureLang = code
-                        },
-                        label = { Text(label) },
-                    )
-                }
-            }
+            // [P31] "게임 화면 언어(인식용)" 선택 제거 — 상대가 어느 언어로 떠도 항상 4개 스크립트를
+            //   병렬로 읽는다(전세계 매칭 대응). 카드 표시 언어(위 A)만 유저가 고른다.
 
             Spacer(Modifier.height(16.dp))
             BattleFormatSelector()

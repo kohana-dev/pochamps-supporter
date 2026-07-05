@@ -26,6 +26,11 @@ data class SlotDiag(
     val editDistance: Int?,
     /** 이 진단이 만들어진 시각(uptimeMs). */
     val atMs: Long,
+    /**
+     * [P31] 매칭에 채택된 라인을 **어느 스크립트 인식기가 읽었는지** 태그(예: "K"/"J"/"C"/"L").
+     * 항상-다국어 인식에서 상대 이름이 실제로 어떤 스크립트로 떠서 잡혔는지 디버깅용. 미매칭이면 null.
+     */
+    val matchedScripts: String? = null,
 ) {
     /** 원인 분류(빈 텍스트 / 미매칭 / 매칭). */
     val outcome: Outcome
@@ -63,7 +68,9 @@ data class DiagState(
             val head = "S${d.slot} "
             return head + when (d.outcome) {
                 SlotDiag.Outcome.MATCHED ->
-                    "${clip(d.matchedRoot ?: "?")} d${d.editDistance ?: 0}"
+                    // [P31] 어느 스크립트로 읽혔는지 태그를 붙인다(예: `S0 ninetales d0 [L]`).
+                    "${clip(d.matchedRoot ?: "?")} d${d.editDistance ?: 0}" +
+                        (d.matchedScripts?.let { " [$it]" } ?: "")
                 SlotDiag.Outcome.EMPTY_TEXT -> "OCR:빈텍스트"
                 SlotDiag.Outcome.UNMATCHED_TEXT ->
                     "미매칭 \"${clip(d.ocrLines.joinToString(" ").trim())}\""

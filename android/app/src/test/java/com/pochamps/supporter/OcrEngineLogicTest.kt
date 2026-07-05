@@ -14,6 +14,8 @@ import org.junit.Test
  */
 class OcrEngineLogicTest {
 
+    // P31: forLanguage 는 deprecated(항상 다국어 인식)지만 과거 호환용으로 유지 — 매핑 자체는 계속 검증.
+    @Suppress("DEPRECATION")
     @Test
     fun 언어별_스크립트_매핑() {
         assertEquals(OcrScript.KOREAN, OcrScript.forLanguage("ko"))
@@ -28,12 +30,14 @@ class OcrEngineLogicTest {
         assertEquals(OcrScript.LATIN, OcrScript.forLanguage("it"))
     }
 
+    @Suppress("DEPRECATION")
     @Test
     fun 대소문자_무관() {
         assertEquals(OcrScript.KOREAN, OcrScript.forLanguage("KO"))
         assertEquals(OcrScript.CHINESE, OcrScript.forLanguage("ZH-CN"))
     }
 
+    @Suppress("DEPRECATION")
     @Test
     fun 미지언어는_라틴_fallback() {
         assertEquals(OcrScript.LATIN, OcrScript.forLanguage("xx"))

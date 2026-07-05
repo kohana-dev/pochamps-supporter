@@ -41,6 +41,23 @@ class DiagStateTest {
     }
 
     @Test
+    fun formatSlot_매칭_스크립트태그_표시() {
+        // [P31] 매칭 라인이 어느 스크립트로 읽혔는지 태그([L])가 붙는다.
+        val d = SlotDiag(0, listOf("Ninetales"), "ninetales", 0, 100, matchedScripts = "L")
+        val s = DiagState.formatSlot(d)
+        assertTrue(s.contains("ninetales"))
+        assertTrue("스크립트 태그 [L] 노출", s.contains("[L]"))
+    }
+
+    @Test
+    fun formatSlot_스크립트태그_없으면_생략() {
+        val d = SlotDiag(0, listOf("Ninetales"), "ninetales", 0, 100, matchedScripts = null)
+        val s = DiagState.formatSlot(d)
+        assertTrue(s.contains("ninetales"))
+        assertTrue("태그 없으면 대괄호 없음", !s.contains("["))
+    }
+
+    @Test
     fun formatSlot_빈텍스트_원인문구() {
         val d = SlotDiag(1, emptyList(), null, null, 100)
         assertEquals("S1 OCR:빈텍스트", DiagState.formatSlot(d))

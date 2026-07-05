@@ -78,12 +78,6 @@ class CaptureService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
-     * 게임 화면 언어(OCR/이름 매칭용, 설정에서 로드, 기본 "ko"). onStartCommand 진입 시 갱신.
-     * OCR 엔진 언어 + 후보/검색 이름 매칭 경로에만 쓴다. 카드 표시엔 [displayLang] 을 쓴다(P19 분리).
-     */
-    private var captureLang: String = AppSettings.DEFAULT_LANG
-
-    /**
      * 앱 표시 언어(카드 내용 렌더용, P19). onStartCommand 진입 시 갱신.
      * OCR 이 어떤 언어를 읽든 도감번호 확정 후 카드(이름/타입/특성/기술)는 이 언어로 표시한다.
      * (attachBaseContext 로 이미 이 로케일이 리소스에 적용되어 있어 UI chrome 도 일치.)
@@ -149,8 +143,8 @@ class CaptureService : Service() {
         }
         val isDemo = intent?.action == ACTION_DEMO
 
-        // 설정에서 언어/형식 로드(오버레이/파이프라인 조립 전에 확정).
-        captureLang = AppSettings(this).language
+        // 설정에서 표시 언어/형식 로드(오버레이/파이프라인 조립 전에 확정).
+        // [P31] 캡처 언어(captureLang)는 폐지 — OCR 은 항상 4개 스크립트를 병렬로 읽는다.
         displayLang = AppSettings(this).displayLang
         captureFormat = AppSettings(this).battleFormat
 
@@ -441,7 +435,8 @@ class CaptureService : Service() {
                 .getOrNull() ?: return@thread
             repository = repo
 
-            val ocr = OcrEngine(language = captureLang).also { ocrEngine = it }
+            // [P31] 항상 다국어 인식 — captureLang 을 넘기지 않는다(4개 스크립트 병렬 인식).
+            val ocr = OcrEngine().also { ocrEngine = it }
             // ROI 는 프레임마다 store 를 다시 읽는다(인앱 보정 저장 즉시 반영, P14).
             val roiStore = PrefsRoiConfigStore(this)
 

@@ -48,13 +48,18 @@ class NameMatcher(index: CandidateIndex) {
         val norm = normalize(ocrText)
         if (norm.isEmpty()) return MatchResult.NoMatch
 
-        // 1) 완전 일치
+        // 1) 완전 일치(거리 0) — 항상 최우선. 9개 언어 사전이 하나로 합쳐져 있어 어느 언어로 읽혀도 잡힌다.
         normalizedToRoot[norm]?.let { root ->
             return buildResult(root, norm, 0)
         }
 
-        // 2) fuzzy — 최소 편집거리 후보 탐색
-        // 짧은 문자열은 오검출 위험이 크므로 길이 기반으로 허용거리를 죈다.
+        // 2) fuzzy — 최소 편집거리 후보 탐색.
+        // [P31] 항상-다국어 인식으로 사전 키가 9배(언어당 이름)로 늘면 fuzzy 오탐 표면이 커진다.
+        //   → 엉뚱한 스크립트 인식기가 만든 garbage 라인이 우연히 짧은 이름에 fuzzy 매칭되지 않도록
+        //     허용거리를 **보수적**으로 죈다:
+        //     - 아주 짧은 이름(정규화 길이 ≤ [MIN_FUZZY_LEN])은 fuzzy 금지(완전일치만) — 오탐 최다 구간.
+        //     - 그 외는 길이/3 과 maxEditDistance 중 작은 값.
+        if (norm.length <= MIN_FUZZY_LEN) return MatchResult.NoMatch
         val allowed = minOf(maxEditDistance, maxOf(1, norm.length / 3))
         var bestKey: String? = null
         var bestDist = Int.MAX_VALUE
@@ -89,6 +94,13 @@ class NameMatcher(index: CandidateIndex) {
     }
 
     companion object {
+        /**
+         * [P31] 이 길이 이하(정규화 기준)의 라인은 fuzzy 매칭을 금지하고 완전일치만 허용한다.
+         * 항상-다국어 인식에서 짧은 garbage 라인이 우연히 사전 짧은 이름에 fuzzy 매칭되는 오탐을 억제.
+         * (실제 포켓몬 종족명은 대부분 이보다 길고, 짧아도 완전일치로 잡히므로 회수율 손실이 없다.)
+         */
+        const val MIN_FUZZY_LEN = 3
+
         /** 정규화: 공백/구두점/기호 제거 + 소문자. 한글/일본어/중국어/라틴 문자는 보존. */
         fun normalize(raw: String): String {
             val sb = StringBuilder(raw.length)

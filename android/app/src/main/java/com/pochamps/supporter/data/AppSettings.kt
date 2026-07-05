@@ -18,10 +18,11 @@ class AppSettings(context: Context) {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
-     * 게임 화면 언어(캡처/OCR 용, P19 이전엔 "언어" 단일값).
-     * OCR 이 읽을 언어 + 이름 매칭 경로에 쓰인다. 표시 언어([displayLang])와는 별개.
-     * 기본 "ko".
+     * (Deprecated, P31) 게임 화면 언어(캡처/OCR 용). **더 이상 OCR/매칭 경로에 쓰지 않는다.**
+     * 상대 이름이 어느 언어로 떠도 항상 4개 스크립트를 병렬로 읽으므로(OcrEngine, P31) 이 값은 무시된다.
+     * 과거 저장값/호환을 위해 프로퍼티만 남긴다(설정 UI 에서도 제거됨).
      */
+    @Deprecated("P31: 항상 다국어 인식으로 전환 — 캡처 언어 설정은 폐지됨. OCR/매칭 경로에서 쓰지 않는다.")
     var language: String
         get() = prefs.getString(KEY_LANG, DEFAULT_LANG)
             ?.takeIf { it in SUPPORTED_LANGUAGES } ?: DEFAULT_LANG
