@@ -288,13 +288,6 @@ class OverlayRenderer(
         minimizeStore.save(next)
     }
 
-    /** 진단 상태를 토글하고 콜백 통지(P21, 컨트롤 바 진단 버튼). */
-    private fun toggleDiagnostics() {
-        val next = !diagEnabled.value
-        diagEnabled.value = next
-        onToggleDiag(next)
-    }
-
     /**
      * 배틀 형식 표시 갱신(P20). 서비스가 설정 반영 후 호출 → 세그먼트 하이라이트가 즉시 바뀐다.
      * 슬롯 정리(더블→싱글 시 2번째 카드 제거)는 [pruneSlotsAbove] 로 별도 수행.
@@ -505,7 +498,9 @@ class OverlayRenderer(
         cardsBySlot[slot] = data
         metaBySlot[slot] = meta
         megaSelBySlot[slot] = MegaSelection.resolveOnUpdate(prevKey, data.key, megaSelBySlot[slot])
-        if (stageBySlot[slot] == null) stageBySlot[slot] = CardStage.CHIP
+        // 기본 단계 = CARD(타입+특성+주요기술). 터치는 통과되므로(P24) 카드가 커도 게임을 안 막고,
+        // 인식/수동지정 즉시 유용한 정보가 보인다. 더 줄이려면 탭해서 CHIP, 더 보려면 EXPANDED.
+        if (stageBySlot[slot] == null) stageBySlot[slot] = CardStage.CARD
     }
 
     /** 하위호환 오버로드(메타 없이). */
@@ -1020,11 +1015,9 @@ class OverlayRenderer(
             // 바만 터치를 받고 그 밖은 게임으로 통과(창=카드 전략 보존). 실캡처/데모 세션에서만 노출.
             val fmt by battleFormat
             val captureOn by captureActive
-            val diagNow by diagEnabled
             if (captureOn) {
                 ControlBar(
                     isDoubles = fmt == com.pochamps.supporter.data.BattleFormat.DOUBLES,
-                    diagOn = diagNow,
                     dragModifier = dragMod,
                     onMinimize = { touchInteraction(); toggleMinimized() },
                     onSelectFormat = { doubles ->
@@ -1042,7 +1035,6 @@ class OverlayRenderer(
                         openSheet.value = SheetState.Search(target, "")
                     },
                     onCalibrate = { touchInteraction(); onCalibrate() },
-                    onToggleDiag = { touchInteraction(); toggleDiagnostics() },
                 )
             }
             // 장시간 미인식 안내 배너(1회). 인식 성공 시 자동으로 사라진다.

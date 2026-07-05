@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.1.12" // 최소화 상태에서 탭=복원 수정 (P26)
+        versionCode = 15
+        versionName = "0.1.13" // 카드 기본 CARD단계(정보 바로 표시) + 진단 컨트롤바→설정 이동 (P27)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

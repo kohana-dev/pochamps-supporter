@@ -308,7 +308,6 @@ fun FormatToggle(
 @Composable
 fun ControlBar(
     isDoubles: Boolean,
-    diagOn: Boolean,
     dragModifier: Modifier,
     /** [−] 전체 오버레이를 작은 핸들로 최소화. */
     onMinimize: () -> Unit,
@@ -318,8 +317,6 @@ fun ControlBar(
     onSearch: () -> Unit,
     /** [⃞] 이름 영역 보정(ROI) 오버레이 열기(ACTION_CALIBRATE). */
     onCalibrate: () -> Unit,
-    /** [진단] 진단 스트립 표시 ON/OFF 즉시 토글. */
-    onToggleDiag: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -357,20 +354,8 @@ fun ControlBar(
             color = AccentColor,
             onClick = onSearch,
         )
-        // 진단 ON/OFF: 원인(빈 텍스트 vs 미매칭)을 현장에서 바로 켠다.
-        Text(
-            stringResource(R.string.overlay_diag_toggle),
-            color = if (diagOn) Color.White else SubTextColor,
-            fontSize = 11.sp.scaled(),
-            fontWeight = if (diagOn) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier
-                .background(
-                    if (diagOn) AccentColor.copy(alpha = 0.85f) else Color(0x33_FFFFFF),
-                    RoundedCornerShape(6.dp.scaled()),
-                )
-                .clickable(onClick = onToggleDiag)
-                .padding(horizontal = 8.dp.scaled(), vertical = 3.dp.scaled()),
-        )
+        // [진단]은 디버그용이라 컨트롤 바에서 제거하고 앱 설정(고급)으로 이동했다(P27).
+        //  평소 사용자가 실수로 켜서 하단 "ocr/s" 스트립이 뜨는 혼란을 없앤다.
     }
 }
 
