@@ -137,7 +137,9 @@ class CaptureManager(
 
     companion object {
         private const val TAG = "CaptureManager"
-        const val DEFAULT_DOWNSCALE = 0.5f
+        // 원본 해상도 캡처(1.0). 이전 0.5(절반)는 작은 이름표 글자를 뭉개 ML Kit 이 "빈텍스트"를
+        // 반환하는 실기기 문제가 있었다(P28). ROI 는 작아 크롭 OCR 비용은 낮고, 프레임은 스로틀된다.
+        const val DEFAULT_DOWNSCALE = 1.0f
         const val DEFAULT_MIN_FRAME_INTERVAL_MS = 350L // ≈ 초당 ~3회
         private const val MAX_IMAGES = 2 // 최신 프레임만 필요 → 얕은 버퍼.
     }

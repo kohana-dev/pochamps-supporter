@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.1.13" // 카드 기본 CARD단계(정보 바로 표시) + 진단 컨트롤바→설정 이동 (P27)
+        versionCode = 16
+        versionName = "0.1.14" // OCR 원본해상도 캡처(빈텍스트 개선) (P28)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
