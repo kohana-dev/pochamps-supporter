@@ -1,14 +1,14 @@
 {
   "manifestSchema": 1,
-  "dataVersion": "20260705",
-  "generatedAt": "2026-07-04T21:39:22Z",
+  "dataVersion": "20260711",
+  "generatedAt": "2026-07-11T06:33:50Z",
   "files": [
     {
       "name": "pokedex_db.json",
       "url": "pokedex_db.json.gz",
-      "sha256": "77e79b81945c46e957c9aa9db016735372a366c2ba33606cf81f91f2bdcc8ecb",
-      "size": 989063,
-      "gzipSize": 177601
+      "sha256": "f58d781ed67781088af6eb264d1de8c388f6fcbe7c92e4aea614e033313bf9ab",
+      "size": 2265749,
+      "gzipSize": 552623
     },
     {
       "name": "usage_db.json",
