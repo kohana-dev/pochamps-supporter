@@ -143,11 +143,14 @@ class OpggAdapter:
             if "color" in o:
                 types[slug] = {"name": nm, "color": o.get("color")}
             elif "category" in o and "power" in o:
+                # effect = 기술 설명(언어별). 나중 기술 탭 확장용으로 함께 저장.
                 moves[slug] = {"name": nm, "type": o.get("type"),
                                "category": o.get("category"), "power": o.get("power"),
-                               "pp": o.get("pp"), "accuracy": o.get("accuracy")}
+                               "pp": o.get("pp"), "accuracy": o.get("accuracy"),
+                               "effect": o.get("effect")}
             elif "description" in o:
-                abilities[slug] = {"name": nm}
+                # description = 특성 효과 설명(언어별). 이름과 함께 언어별로 수집.
+                abilities[slug] = {"name": nm, "description": o.get("description")}
         return {"types": types, "abilities": abilities, "moves": moves}
 
 
@@ -166,24 +169,38 @@ def merge(per_lang):
             "base_stats": rec["base_stats"], "moves": rec["moves"],
         })
 
-    def loc(cat, extra):
+    def loc(cat, extra, per_lang_text=()):
+        # extra: en 스냅샷에서 그대로 복사할 언어-무관 필드(색·위력 등).
+        # per_lang_text: (출력키, 소스키) 쌍 — names 처럼 언어별로 수집하는 텍스트
+        #   (특성 description, 기술 effect 등. 값이 있는 언어만 저장, 전부 없으면 키 생략).
         d = {}
         for slug, info in base[cat].items():
             names = {l: (per_lang[l][cat].get(slug) or info).get("name") for l in LANGS}
-            d[slug] = {"names": names, **{k: info.get(k) for k in extra}}
+            entry = {"names": names, **{k: info.get(k) for k in extra}}
+            for out_key, src_key in per_lang_text:
+                texts = {}
+                for l in LANGS:
+                    r = per_lang[l][cat].get(slug) or info
+                    v = r.get(src_key)
+                    if v:
+                        texts[l] = v
+                if texts:
+                    entry[out_key] = texts
+            d[slug] = entry
         return d
 
     link_megas(pokemon)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "languages": LANGS,
         "count": len(pokemon),
         "pokemon": pokemon,
         "dict": {
             "types": loc("types", ["color"]),
-            "abilities": loc("abilities", []),
-            "moves": loc("moves", ["type", "category", "power", "pp", "accuracy"]),
+            "abilities": loc("abilities", [], [("descriptions", "description")]),
+            "moves": loc("moves", ["type", "category", "power", "pp", "accuracy"],
+                        [("effects", "effect")]),
         },
     }
 
