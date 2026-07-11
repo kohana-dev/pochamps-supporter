@@ -245,6 +245,12 @@ class OverlayRenderer(
     /** 슬롯별 메가 선택(-1=base, 0/1=megaForms 인덱스). */
     private val megaSelBySlot = mutableStateMapOf<Int, Int>()
 
+    /**
+     * [P36] 슬롯별 특성 상세 서브상태: 열려 있으면 현재 보는 특성 slug. 없으면(미열림) 키 없음.
+     * 카드 창 안에서 stage 위에 겹치는 상태 — 열려 있으면 단계 순환/자동 축소가 상세를 닫지 않는다.
+     */
+    private val detailAbilityBySlot = mutableStateMapOf<Int, String>()
+
     /** 열려 있는 시트 상태(null=없음). 한 번에 하나만. */
     private val openSheet = mutableStateOf<SheetState?>(null)
 
@@ -673,6 +679,8 @@ class OverlayRenderer(
         cardsBySlot[slot] = data
         metaBySlot[slot] = meta
         megaSelBySlot[slot] = MegaSelection.resolveOnUpdate(prevKey, data.key, megaSelBySlot[slot])
+        // [P36] 다른 포켓몬으로 교체되면 열려 있던 특성 상세는 무효 → 닫는다(직전 특성 설명 누수 방지).
+        if (prevKey != null && prevKey != data.key) detailAbilityBySlot.remove(slot)
         // 기본 단계 = CARD(타입+특성+주요기술). 터치는 통과되므로(P24) 카드가 커도 게임을 안 막고,
         // 인식/수동지정 즉시 유용한 정보가 보인다. 더 줄이려면 탭해서 CHIP, 더 보려면 EXPANDED.
         if (stageBySlot[slot] == null) stageBySlot[slot] = CardStage.CARD
@@ -687,6 +695,7 @@ class OverlayRenderer(
         stageBySlot.remove(slot)
         metaBySlot.remove(slot)
         megaSelBySlot.remove(slot)
+        detailAbilityBySlot.remove(slot) // [P36] 상세 서브상태도 함께 정리.
         expandedAtBySlot.remove(slot)
         failureSlots.remove(slot)
         slotOrder.remove(slot)
@@ -1095,6 +1104,8 @@ class OverlayRenderer(
 
     private fun cycleStage(slot: Int) {
         touchInteraction() // P24: 조작 → 상호작용 모드 자동 복귀 타이머 리셋.
+        // [P36] 특성 상세 뷰가 열려 있으면 단계 순환을 무시한다(상세는 ← 뒤로로만 닫힘).
+        if (!AbilityDetail.allowsStageCycle(detailAbilityBySlot, slot)) return
         val next = when (stageBySlot[slot] ?: CardStage.CHIP) {
             CardStage.CHIP -> CardStage.CARD
             CardStage.CARD -> CardStage.EXPANDED
@@ -1174,7 +1185,9 @@ class OverlayRenderer(
                 while (true) {
                     kotlinx.coroutines.delay(1_000L)
                     val cutoff = now() - autoCollapseMs
-                    val toCollapse = expandedAtBySlot.filter { it.value <= cutoff }.keys.toList()
+                    val expired = expandedAtBySlot.filter { it.value <= cutoff }.keys.toList()
+                    // [P36] 특성 상세가 열린 슬롯은 자동 축소에서 제외(뒤로 시 직전 EXPANDED 로 정확히 복귀).
+                    val toCollapse = AbilityDetail.collapsible(expired, detailAbilityBySlot)
                     for (s in toCollapse) {
                         if (stageBySlot[s] == CardStage.EXPANDED) stageBySlot[s] = CardStage.CARD
                         expandedAtBySlot.remove(s)
@@ -1386,6 +1399,9 @@ class OverlayRenderer(
                 val meta = metaBySlot[slot] ?: SlotUiMeta()
                 val stage = stageBySlot[slot] ?: CardStage.CHIP
                 val megaSel = megaSelBySlot[slot] ?: -1
+                // [P36] 상세 서브상태: 열린 slug 를 현재 카드의 특성에서 해석(없으면 미열림).
+                val detailAbility = detailAbilityBySlot[slot]
+                    ?.let { slug -> card.abilities.firstOrNull { it.slug == slug } }
 
                 OverlayCard(
                     data = card,
@@ -1396,6 +1412,16 @@ class OverlayRenderer(
                     dragModifier = if (slot == primarySlot) dragMod else Modifier,
                     onTapCycle = { cycleStage(slot) },
                     onInteract = { touchExpanded(slot) },
+                    // [P36] 특성 상세 진입/복귀.
+                    detailAbility = detailAbility,
+                    onOpenAbilityDetail = { ability ->
+                        touchInteraction()
+                        if (ability.hasDescription) detailAbilityBySlot[slot] = ability.slug
+                    },
+                    onCloseAbilityDetail = {
+                        touchInteraction()
+                        detailAbilityBySlot.remove(slot)
+                    },
                     onSelectMega = { idx ->
                         megaSelBySlot[slot] = idx
                         touchExpanded(slot)
@@ -1545,6 +1571,32 @@ internal object ExpandExclusive {
         }
         return result
     }
+}
+
+/**
+ * [P36] 특성 상세 서브상태 전환 로직(순수 JVM — Android 의존성 없음, 유닛 테스트 가능).
+ *
+ * 카드 창 안에서 stage(CHIP/CARD/EXPANDED) 위에 겹치는 "특성 상세" 서브상태를 슬롯별로 관리한다.
+ * 상세가 열려 있으면 단계 순환/자동 축소가 상세를 닫지 않는다(← 뒤로로만 닫힘) — 뒤로 시 직전 단계로
+ * 정확히 복귀하도록 stage 를 얼려 두는 것이 핵심. 상태는 slot→ability slug 맵으로 표현한다.
+ */
+internal object AbilityDetail {
+    /** [slot] 상세가 열려 있는가. */
+    fun isOpen(open: Map<Int, String>, slot: Int): Boolean = open.containsKey(slot)
+
+    /** 상세 열기: [slot] 에 [abilitySlug] 를 설정한 새 맵(불변 반환 — 순수). */
+    fun open(open: Map<Int, String>, slot: Int, abilitySlug: String): Map<Int, String> =
+        open + (slot to abilitySlug)
+
+    /** 뒤로(닫기): [slot] 의 상세를 제거한 새 맵. */
+    fun close(open: Map<Int, String>, slot: Int): Map<Int, String> = open - slot
+
+    /** 단계 순환 허용 여부: 상세가 열려 있으면 false(순환 무시 → 상세 유지). */
+    fun allowsStageCycle(open: Map<Int, String>, slot: Int): Boolean = !isOpen(open, slot)
+
+    /** 자동 축소 후보 중 상세가 열리지 않은 슬롯만 남긴다(열린 슬롯은 stage 유지). */
+    fun collapsible(candidates: Collection<Int>, open: Map<Int, String>): List<Int> =
+        candidates.filter { !isOpen(open, it) }
 }
 
 /** 슬롯 UI 메타(오버레이가 보관하는 형태 — 파이프라인 SlotMeta 와 대응). */

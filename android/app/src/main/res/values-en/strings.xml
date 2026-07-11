@@ -182,6 +182,8 @@
 
     <!-- ===== Overlay card ===== -->
     <string name="overlay_ability_prefix">Ability: </string>
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">No description</string>
     <string name="overlay_more_detail">More ▸ (stats · matchups)</string>
     <string name="overlay_change_candidate">Which one? Change ▸</string>
     <string name="overlay_mega_base">Base</string>

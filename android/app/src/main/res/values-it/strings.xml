@@ -124,6 +124,8 @@
     <string name="notif_text">Mostra informazioni sul Pokémon avversario visibile sullo schermo.</string>
     <string name="notif_action_exit">Esci</string>
     <string name="overlay_ability_prefix">Abilità: </string>
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">Nessuna descrizione</string>
     <string name="overlay_more_detail">Altro ▸ (statistiche · confronti)</string>
     <string name="overlay_change_candidate">Quale? Cambia ▸</string>
     <string name="overlay_mega_base">Base</string>

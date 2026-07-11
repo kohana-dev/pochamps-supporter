@@ -153,6 +153,8 @@
 
     <!-- ===== オーバーレイカード ===== -->
     <string name="overlay_ability_prefix">とくせい: </string>
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">説明なし</string>
     <string name="overlay_more_detail">詳細 ▸(種族値・相性)</string>
     <string name="overlay_change_candidate">どっち? 変更 ▸</string>
     <string name="overlay_mega_base">通常</string>

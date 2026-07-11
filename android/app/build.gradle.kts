@@ -13,8 +13,8 @@ android {
         applicationId = "com.pochamps.supporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.2.1" // 실기기 리포트 3건: 터치 영구차단 버그 + 단일앱 공유 안내 + 휴지통 드래그 종료 (P35)
+        versionCode = 23
+        versionName = "0.2.2" // 특성 탭 → 효과 설명 상세 뷰 + 특성 설명 9언어 데이터 (P36)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

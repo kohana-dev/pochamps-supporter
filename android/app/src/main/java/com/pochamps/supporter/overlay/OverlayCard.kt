@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -108,6 +110,15 @@ fun OverlayCard(
     onTapCycle: () -> Unit,
     /** 확장 패널 내 임의 조작 → 자동 축소 타이머 리셋. */
     onInteract: () -> Unit = {},
+    /**
+     * [P36] 특성 상세 서브상태. non-null 이면 카드 본문 대신 특성 상세 뷰(제목+설명+←뒤로)를 렌더한다.
+     * 창=카드/터치통과/스케일 보존 — 별도 창이 아니라 이 카드 창 안에서 전환.
+     */
+    detailAbility: OverlayCardData.AbilityLine? = null,
+    /** [P36] 특성 이름 탭 → 상세 뷰 열기(설명 있는 특성만 UI 에서 탭 가능). */
+    onOpenAbilityDetail: (OverlayCardData.AbilityLine) -> Unit = {},
+    /** [P36] 상세 뷰 ← 뒤로 → 직전 단계 카드로 복귀. */
+    onCloseAbilityDetail: () -> Unit = {},
     /** 메가 세그먼트 선택(-1=base, 0/1=megaForms). */
     onSelectMega: (Int) -> Unit = {},
     /** "바꾸기"(후보 선택 시트) 진입. */
@@ -228,6 +239,12 @@ fun OverlayCard(
             )
         }
 
+        // [P36] 특성 상세 뷰가 열려 있으면, 카드 본문(타입칩+단계 본문) 대신 상세를 렌더한다.
+        //  뒤로(←)로만 닫히며, 단계 순환/자동 축소는 상세를 건드리지 않는다(호출부에서 차단).
+        if (detailAbility != null) {
+            AbilityDetailView(ability = detailAbility, onBack = onCloseAbilityDetail)
+        } else {
+
         // --- 타입 칩 줄(항상 표시 = 1단계 핵심) + ×4 약점 배지(P32 CARD 승격) ---
         Row(
             modifier = Modifier
@@ -250,7 +267,7 @@ fun OverlayCard(
                 modifier = Modifier.padding(start = 12.dp.scaled(), end = 12.dp.scaled(), bottom = 10.dp.scaled()),
                 verticalArrangement = Arrangement.spacedBy(4.dp.scaled()),
             ) {
-                AbilityMovesBlock(data)
+                AbilityMovesBlock(data, onOpenAbilityDetail)
 
                 // [P32] 아이템 사용률: CARD 는 상위 1~2개만 한 줄(카드 높이 증가 최소화). 이름은 영문.
                 if (data.topItems.isNotEmpty()) {
@@ -299,9 +316,11 @@ fun OverlayCard(
                     onSelectMega = onSelectMega,
                     onOpenCandidateSheet = onOpenCandidateSheet,
                     onPinTeammate = onPinTeammate,
+                    onOpenAbilityDetail = onOpenAbilityDetail,
                 )
             }
         }
+        } // else (특성 상세 뷰가 아닐 때)
       } // Column
 
       // [P30] 우하단 모서리 리사이즈 그립. 주 카드에만(onResizeDrag != null). 드래그로 카드 크기 연속 조절.
@@ -362,16 +381,99 @@ private fun ResizeGrip(
     }
 }
 
-/** 특성 줄 + 주요 기술(사용률%) 목록. CARD/EXPANDED 공용. */
+/**
+ * 특성 줄 + 주요 기술(사용률%) 목록. CARD/EXPANDED 공용.
+ * [P36] 각 특성 이름은 개별 탭 가능(설명 있으면 밑줄+강조색) → [onOpenAbilityDetail] 로 상세 뷰 진입.
+ * 이름이 여럿/길어도 잘리지 않게 FlowRow 로 줄바꿈. 설명 없는 특성은 탭 비활성(회색, 밑줄 없음).
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun AbilityMovesBlock(data: OverlayCardData) {
+private fun AbilityMovesBlock(
+    data: OverlayCardData,
+    onOpenAbilityDetail: (OverlayCardData.AbilityLine) -> Unit,
+) {
     if (data.abilities.isNotEmpty()) {
-        Text(
-            stringResource(R.string.overlay_ability_prefix) + data.abilities.joinToString(" / "),
-            color = SubTextColor, fontSize = 12.sp.scaled(),
-        )
+        FlowRow(verticalArrangement = Arrangement.Center) {
+            Text(
+                stringResource(R.string.overlay_ability_prefix),
+                color = SubTextColor, fontSize = 12.sp.scaled(),
+            )
+            data.abilities.forEachIndexed { i, ability ->
+                if (i > 0) {
+                    Text(" / ", color = SubTextColor, fontSize = 12.sp.scaled())
+                }
+                AbilityNameText(ability, onOpenAbilityDetail)
+            }
+        }
     }
     data.topMoves.forEach { move -> MoveRow(move) }
+}
+
+/**
+ * [P36] 특성 이름 한 개(탭 가능 힌트). 설명이 있으면 강조색+밑줄로 "탭하면 설명" 을 시각적으로 알리고,
+ * 탭하면 [onOpen] 으로 상세 뷰를 연다. 설명이 없으면 평범한 회색 텍스트(탭 비활성).
+ */
+@Composable
+private fun AbilityNameText(
+    ability: OverlayCardData.AbilityLine,
+    onOpen: (OverlayCardData.AbilityLine) -> Unit,
+) {
+    if (ability.hasDescription) {
+        Text(
+            ability.name,
+            color = AccentColor,
+            fontSize = 12.sp.scaled(),
+            fontWeight = FontWeight.Medium,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clickable { onOpen(ability) },
+        )
+    } else {
+        Text(ability.name, color = SubTextColor, fontSize = 12.sp.scaled())
+    }
+}
+
+/**
+ * [P36] 특성 상세 뷰(카드 창 내부 전환). 제목(특성 이름) + ← 뒤로 + 스크롤 가능한 효과 설명.
+ *  - ← 뒤로가 주 닫기 수단(오버레이는 평소 NOT_FOCUSABLE 이라 시스템 back 미수신).
+ *  - 설명이 길면 화면 높이 ~60% 로 제한 후 세로 스크롤(넘치지 않으면 스크롤 안 나타남).
+ *  - 데이터 누락 특성은 애초에 탭 비활성이지만, 방어적으로 "설명 없음" 문구를 폴백 표기.
+ */
+@Composable
+private fun AbilityDetailView(
+    ability: OverlayCardData.AbilityLine,
+    onBack: () -> Unit,
+) {
+    val screenH = LocalOverlayScreenHeightDp.current
+    val maxH: Dp = if (screenH > 0) (screenH * 0.6f).dp else Dp.Unspecified
+    Column(
+        modifier = Modifier.padding(start = 12.dp.scaled(), end = 12.dp.scaled(), bottom = 12.dp.scaled()),
+        verticalArrangement = Arrangement.spacedBy(6.dp.scaled()),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // ← 뒤로: 넉넉한 터치 영역. 오버레이 back 미수신이라 이 버튼이 주 닫기 수단.
+            Text(
+                stringResource(R.string.overlay_ability_back),
+                color = AccentColor, fontSize = 18.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(end = 8.dp.scaled(), top = 2.dp.scaled(), bottom = 2.dp.scaled()),
+            )
+            Text(
+                ability.name,
+                color = ChipTextColor, fontSize = 14.sp.scaled(), fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        val descMod = if (maxH != Dp.Unspecified) {
+            Modifier.heightIn(max = maxH).verticalScroll(rememberScrollState())
+        } else Modifier
+        Box(modifier = descMod) {
+            Text(
+                ability.description ?: stringResource(R.string.overlay_ability_no_desc),
+                color = SubTextColor, fontSize = 12.sp.scaled(), lineHeight = 17.sp.scaled(),
+            )
+        }
+    }
 }
 
 /**
@@ -986,6 +1088,7 @@ private fun ExpandedTwoColumnPanel(
     onSelectMega: (Int) -> Unit,
     onOpenCandidateSheet: () -> Unit,
     onPinTeammate: ((key: String) -> Unit)? = null,
+    onOpenAbilityDetail: (OverlayCardData.AbilityLine) -> Unit = {},
 ) {
     // 안전망 최대 높이: 화면 높이의 ~85%. 화면 높이를 모르면(0) 제한 없음(wrap-content).
     val screenH = LocalOverlayScreenHeightDp.current
@@ -1008,7 +1111,7 @@ private fun ExpandedTwoColumnPanel(
         ) {
             Text(stringResource(R.string.overlay_dex_prefix) + "${ex.dexNumber}",
                 color = SubTextColor, fontSize = 11.sp.scaled())
-            AbilityMovesBlock(data)
+            AbilityMovesBlock(data, onOpenAbilityDetail)
 
             // [P32] 아이템 사용률 상위 4(EXPANDED). 이름은 영문 원문(9언어 사전 없음).
             if (data.topItems.isNotEmpty()) {

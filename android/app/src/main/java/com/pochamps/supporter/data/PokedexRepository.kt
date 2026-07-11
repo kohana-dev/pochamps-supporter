@@ -71,9 +71,20 @@ class PokedexRepository private constructor(
     fun abilityName(slug: String, lang: String): String? =
         pokedex.dict.abilities[slug]?.names?.get(lang)
 
+    /**
+     * [P36] 특성 slug → 언어별 효과 설명. 데이터에 설명이 없으면 null(UI 는 탭 비활성/"설명 없음").
+     * LocalizedNames.get 이 요청 언어 없으면 en 으로 폴백한다.
+     */
+    fun abilityDescription(slug: String, lang: String): String? =
+        pokedex.dict.abilities[slug]?.descriptions?.get(lang)
+
     /** 기술 slug → 언어별 이름. */
     fun moveName(slug: String, lang: String): String? =
         pokedex.dict.moves[slug]?.names?.get(lang)
+
+    /** [P36] 기술 slug → 언어별 효과 설명(기술 탭 확장 대비). 없으면 null. */
+    fun moveEffect(slug: String, lang: String): String? =
+        pokedex.dict.moves[slug]?.effects?.get(lang)
 
     /** 기술 slug → 사전 상세(타입/위력/PP 등). */
     fun moveInfo(slug: String): MoveInfo? = pokedex.dict.moves[slug]

@@ -66,13 +66,20 @@ data class TypeInfo(
     val color: String? = null,
 )
 
-/** 특성 사전 항목: 다국어 이름만. */
+/**
+ * 특성 사전 항목: 다국어 이름 + 다국어 효과 설명(P36).
+ * [descriptions] 는 이름과 동일한 9언어 묶음(op.gg description). 데이터 누락 특성은 null.
+ */
 @Serializable
 data class DictEntry(
     val names: LocalizedNames = LocalizedNames(),
+    val descriptions: LocalizedNames? = null,
 )
 
-/** 기술 사전 항목: 다국어 이름 + 타입/분류/위력/PP/명중 등(선택 필드). */
+/**
+ * 기술 사전 항목: 다국어 이름 + 타입/분류/위력/PP/명중 등(선택 필드).
+ * [effects] 는 기술 효과 설명(9언어, P36) — 현재 UI 미사용이나 기술 탭 확장 대비 저장. 누락 시 null.
+ */
 @Serializable
 data class MoveInfo(
     val names: LocalizedNames = LocalizedNames(),
@@ -81,4 +88,5 @@ data class MoveInfo(
     val power: Int? = null,
     val pp: Int? = null,
     val accuracy: Int? = null,
+    val effects: LocalizedNames? = null,
 )

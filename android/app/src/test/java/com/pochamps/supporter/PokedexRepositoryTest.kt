@@ -5,6 +5,7 @@ import com.pochamps.supporter.data.PokedexRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -34,6 +35,39 @@ class PokedexRepositoryTest {
         assertTrue("특성 rough-skin 보유", g.abilities.contains("rough-skin"))
         // 종족값 합 검증(600)
         assertEquals(600, g.base_stats.total)
+    }
+
+    // ===== P36: 특성 효과 설명(9언어) 조회 =====
+
+    @Test
+    fun abilityDescription_roughSkin_한국어_존재() {
+        val ko = repo.abilityDescription("rough-skin", "ko")
+        assertNotNull("까칠한피부 한국어 설명 존재", ko)
+        assertTrue("접촉 기술 언급", ko!!.contains("접촉"))
+        // 영어 설명도 별도로 존재(언어별 수집 확인).
+        val en = repo.abilityDescription("rough-skin", "en")
+        assertNotNull("rough-skin 영어 설명 존재", en)
+        assertTrue("한/영 설명이 다름", ko != en)
+    }
+
+    @Test
+    fun abilityDescription_sandVeil_일본어_존재() {
+        val ja = repo.abilityDescription("sand-veil", "ja")
+        assertNotNull("모래숨기 일본어 설명 존재", ja)
+        assertTrue("설명 비어있지 않음", ja!!.isNotBlank())
+    }
+
+    @Test
+    fun abilityDescription_없는특성_null() {
+        assertNull("존재하지 않는 특성 slug → null", repo.abilityDescription("존재하지않는특성", "ko"))
+    }
+
+    @Test
+    fun moveEffect_9언어_저장됨() {
+        // P36: 기술 effect 도 함께 저장(기술 탭 확장 대비). garchomp 주력기 earthquake 확인.
+        val ko = repo.moveEffect("earthquake", "ko")
+        assertNotNull("지진 한국어 효과 설명 존재", ko)
+        assertTrue("설명 비어있지 않음", ko!!.isNotBlank())
     }
 
     @Test

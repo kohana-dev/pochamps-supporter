@@ -124,6 +124,8 @@
     <string name="notif_text">显示屏幕上可见对手 Pokémon 的信息。</string>
     <string name="notif_action_exit">退出</string>
     <string name="overlay_ability_prefix">特性: </string>
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">无说明</string>
     <string name="overlay_more_detail">更多 ▸(种族值 · 属性克制)</string>
     <string name="overlay_change_candidate">是哪只?更改 ▸</string>
     <string name="overlay_mega_base">原始</string>

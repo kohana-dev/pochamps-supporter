@@ -23,8 +23,8 @@ data class OverlayCardData(
     val name: String,
     /** 타입 칩: (표시명, 색상 헥스) 순서쌍. 색상 없으면 null. */
     val typeChips: List<TypeChip>,
-    /** 특성 표시명 리스트(선택 언어). */
-    val abilities: List<String>,
+    /** 특성 리스트(선택 언어): slug + 표시명 + 효과 설명(P36). 설명 없으면 description=null. */
+    val abilities: List<AbilityLine>,
     /** 주요 기술 4개(사용률 상위) — (표시명, 사용률%). */
     val topMoves: List<MoveLine>,
     /**
@@ -52,6 +52,14 @@ data class OverlayCardData(
 ) {
     data class TypeChip(val label: String, val colorHex: String?)
     data class MoveLine(val label: String, val pct: Double?)
+
+    /**
+     * [P36] 특성 한 줄: slug + 표시명 + 효과 설명(선택 언어).
+     * [description] 이 null 이면 데이터 누락 → UI 는 탭 비활성/"설명 없음". [hasDescription] 로 판정.
+     */
+    data class AbilityLine(val slug: String, val name: String, val description: String?) {
+        val hasDescription: Boolean get() = !description.isNullOrBlank()
+    }
 
     /**
      * 종족값 한 스탯(표시명 + 값 + base 대비 증감 — 메가 시각화용).
@@ -132,8 +140,13 @@ data class OverlayCardData(
                 )
             }
 
+            // [P36] 특성: slug + 표시명 + 효과 설명(탭 → 상세 뷰용). 설명 없으면 null(탭 비활성).
             val abilities = entry.abilities.map { abilitySlug ->
-                repo.abilityName(abilitySlug, lang) ?: abilitySlug
+                AbilityLine(
+                    slug = abilitySlug,
+                    name = repo.abilityName(abilitySlug, lang) ?: abilitySlug,
+                    description = repo.abilityDescription(abilitySlug, lang),
+                )
             }
 
             val topMoves = repo.topMoves(key, format, limit = 4).map { stat ->

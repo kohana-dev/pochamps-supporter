@@ -35,8 +35,13 @@ class OverlayCardDataTest {
             assertTrue("타입 색상 헥스 존재: ${chip.label}", chip.colorHex?.startsWith("#") == true)
         }
 
-        // 특성 최소 1개.
+        // 특성 최소 1개. slug/이름/설명(P36)이 채워진다.
         assertTrue("특성 존재", card.abilities.isNotEmpty())
+        val roughSkin = card.abilities.firstOrNull { it.slug == "rough-skin" }
+        assertTrue("까칠한피부 특성 존재", roughSkin != null)
+        assertEquals("까칠한피부", roughSkin!!.name)
+        assertTrue("특성 효과 설명 존재(탭 가능)", roughSkin.hasDescription)
+        assertTrue("설명에 접촉 언급", roughSkin.description!!.contains("접촉"))
 
         // 주요기술 4개(더블 상위), 사용률 내림차순.
         assertEquals(4, card.topMoves.size)

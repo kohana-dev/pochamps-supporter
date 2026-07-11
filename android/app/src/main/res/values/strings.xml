@@ -189,6 +189,9 @@
 
     <!-- ===== 오버레이 카드 ===== -->
     <string name="overlay_ability_prefix">특성: </string>
+    <!-- P36: 특성 탭 → 효과 설명 상세 뷰 -->
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">설명 없음</string>
     <string name="overlay_more_detail">자세히 ▸ (종족값·상성)</string>
     <string name="overlay_change_candidate">어느 쪽? 바꾸기 ▸</string>
     <string name="overlay_mega_base">기본</string>

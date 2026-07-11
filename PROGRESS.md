@@ -1794,3 +1794,63 @@ NameMatcher root 부재 시 NoMatch(malformed 데이터 전용, 정상 데이터
 
 ### 남은 실기기 전용 항목
 - 실 대전 캡처에서 팀원 칩 탭→핀이 실 슬롯에 반영되는지 최종 확인(데모는 슬롯0 단일 — `pipeline.pinSlot` 경로는 P18 과 동일하게 검증됨).
+
+## P36 — 특성 탭 → 효과 설명 상세 뷰 + 특성 설명 9언어 데이터 (v0.2.2) ✅ 완료 (2026-07-11)
+
+> 실사용자 요구: 카드에 특성이 보일 때 **유저가 특성을 탭하면 그 특성의 효과 설명**을 보여주고, **← 뒤로**하면 다시 포켓몬 정보로 돌아온다.
+
+### Part 1 — 데이터: 특성 설명 9언어 추가
+- **원인 확인**: `data/scrape_pokedex.py`의 `_entries`가 특성 op.gg 엔트리에서 `name`만 저장하고 `description`(언어별)을 버리고 있었다(line ~150 `abilities[slug] = {"name": nm}`).
+- **수정**:
+  - `_entries`: ability 는 `description`, move 는 `effect` 도 함께 보존.
+  - `merge`/`loc`: `per_lang_text` 인자 신설 — description/effect 를 **names 처럼 언어별로** 수집(주의: description 은 base=en extra 가 아니라 언어별로 다름). 값 있는 언어만 저장, 전부 없으면 키 생략.
+  - 결과 스키마: `dict.abilities[slug] = {"names": {...9}, "descriptions": {...9}}`, `dict.moves[slug] = {..., "effects": {...9}}`. `schema_version` 1→2.
+  - **기술 effect 도 9언어 저장**(현재 UI 는 특성만 쓰지만 기술 탭 확장이 공짜가 되게).
+- **재스크래핑**(9언어, `python3 data/scrape_pokedex.py`): 포켓몬 317 · 특성 313 · 기술 920. **특성 313종 전부 9언어 설명 포함**(검증: rough-skin/까칠한피부 ko="접촉 기술을 받으면 상대 최대 HP의 1/8만큼 데미지를 준다.", en/ja/de/es/fr/it/zh-cn/zh-tw 모두 존재하며 언어별로 다름). 기술 915/920 이 9언어 effect(나머지 5개 생략). `usage_db`/`candidate_index` 영향 없음(재실행 안 함). assets 사본 동기화. DB 989KB→2266KB.
+
+### Part 2 — 데이터 모델 + 리포지토리
+- `data/Pokedex.kt`: `DictEntry.descriptions: LocalizedNames?`, `MoveInfo.effects: LocalizedNames?` 추가(둘 다 nullable — 누락 특성/기술 대비).
+- `data/PokedexRepository.kt`: `abilityDescription(slug, lang)`(en 폴백), `moveEffect(slug, lang)` 신규.
+- `overlay/OverlayCardData.kt`: `abilities: List<String>` → `List<AbilityLine>`(slug + name + description, `hasDescription`). `fromRepository` 조립 시 각 특성에 설명 포함.
+
+### Part 3 — UI: 탭 → 설명 → 뒤로
+- `overlay/OverlayCard.kt`:
+  - **특성 이름 탭 가능화**: `AbilityMovesBlock` 을 FlowRow 로 재작성(이름 여럿/길어도 줄바꿈). 설명 있는 특성은 **강조색+밑줄**로 탭 가능 힌트, 탭하면 상세 진입. **설명 없는 특성은 회색·밑줄 없음·탭 비활성**.
+  - **특성 상세 뷰**(`AbilityDetailView`): non-null `detailAbility` 면 카드 본문(타입칩+단계 본문) 대신 **← 뒤로 + 특성 이름(제목) + 스크롤 가능한 효과 설명**을 렌더. 설명 길면 화면 ~60% 높이 제한 후 세로 스크롤. 데이터 누락 시 "설명 없음" 폴백.
+  - **별도 창이 아니라 기존 카드 창 안에서 전환** — 창=카드/터치통과/2컬럼/스케일 전부 보존.
+- `overlay/OverlayRenderer.kt`:
+  - 슬롯별 서브상태 `detailAbilityBySlot`(slot→ability slug). 열림 slug 를 현재 카드 특성에서 해석(카드 교체 시 무효화).
+  - **상세 표시 중 단계 순환/자동 축소 차단**: `cycleStage` 가드(`AbilityDetail.allowsStageCycle`), 자동축소 루프 제외(`AbilityDetail.collapsible`) → **← 뒤로로만 닫히고, 직전 단계(CARD/EXPANDED)로 정확히 복귀**. 조작(interact) 모드에서 동작.
+  - 다른 포켓몬 교체(`updateSlot` key 변경)/`removeCard` 시 상세 정리(직전 특성 설명 누수 방지).
+  - **시스템 back 키**: 오버레이는 평소 `NOT_FOCUSABLE` 이라 back 미수신 — 상세 뷰 **← 버튼이 주 닫기 수단**(정직 기록: focusable-상태 back 처리는 과해서 생략).
+- 문자열: `overlay_ability_back`("←", 언어중립)·`overlay_ability_no_desc` 9언어(ko "설명 없음" / en "No description" / ja "説明なし" + de/es/fr/it/zh-rCN/zh-rTW).
+
+### 순수 로직 분리 + 테스트 (+9 → 326)
+- `overlay/OverlayRenderer.kt` `AbilityDetail`(신규 internal object, Android 의존 0): `open`/`close`/`isOpen`/`allowsStageCycle`/`collapsible`.
+- `PokedexRepositoryTest`(+4): rough-skin ko 설명(접촉 언급)·en 과 다름, sand-veil ja 설명, 없는 특성 null, earthquake ko effect.
+- `OverlayCardDataTest`(수정): garchomp 카드 특성에 slug="rough-skin"·name="까칠한피부"·hasDescription·설명 "접촉" 검증.
+- `AbilityDetailTest`(+5, 신규): 열기→뒤로 왕복, 상세중 단계순환 차단, 상세중 자동축소 제외, 뒤로 시 직전 EXPANDED 복귀, 교체 시 close.
+
+### 에뮬레이터 실측 (AVD `Kohana_QA_API_35`, 가로 1280x720, 한국어 데모 세션, `field_samples/p36/`)
+- `02_demo_card`: 한카리아스 CARD — **특성:까칠한피부 / 모래숨기** 둘 다 강조색+밑줄(탭 가능 힌트).
+- `03_interact_mode`: 핸들 탭 → ✋ 조작 모드.
+- `04_ability_detail`: 까칠한피부 탭 → **상세 뷰**(← 뒤로 + "까칠한피부" 제목 + 한국어 설명 "접촉 기술을 받으면 상대 최대 HP의 1/8만큼 데미지를 준다."). 창=카드 유지, 타입칩/기술 본문은 상세로 대체.
+- `05_back_to_card`: ← 뒤로 → **CARD 완전 복귀**(타입칩·특성·기술·아이템·메가토글·자세히 그대로 = 직전 단계 보존).
+
+### 빌드·테스트 (실제 실행)
+- `:app:testDebugUnitTest` → **BUILD SUCCESSFUL, 326/326, failures 0**(317 + P36 9).
+- `:app:assembleRelease`(R8) → 성공. **versionCode 23 / versionName 0.2.2**.
+
+### 코드 변경 요약
+- `data/scrape_pokedex.py`: `_entries` ability description/move effect 보존, `merge/loc` per_lang_text 언어별 수집, schema_version 2.
+- `data/pokedex_db.json`(+assets 사본): 특성 설명·기술 effect 9언어.
+- `data/Pokedex.kt`: `DictEntry.descriptions`/`MoveInfo.effects`.
+- `data/PokedexRepository.kt`: `abilityDescription`/`moveEffect`.
+- `overlay/OverlayCardData.kt`: `AbilityLine` 타입, `abilities` 타입 변경, 조립.
+- `overlay/OverlayCard.kt`: `AbilityMovesBlock`(FlowRow+탭)/`AbilityNameText`/`AbilityDetailView`, `detailAbility`/`onOpenAbilityDetail`/`onCloseAbilityDetail` 파라미터.
+- `overlay/OverlayRenderer.kt`: `detailAbilityBySlot` + `AbilityDetail` 순수 로직 + 배선.
+- strings(9언어): `overlay_ability_back`/`overlay_ability_no_desc`.
+- build.gradle.kts: versionCode 23 / 0.2.2.
+
+### 남은 실기기 전용 항목
+- 실 대전 캡처에서 실 인식 카드의 특성 탭→설명이 동일하게 동작하는지 최종 확인(데모와 동일 UI 경로 — 상세 상태/렌더는 캡처 유무 무관). 표시 언어 전환 시 설명이 해당 언어로 나오는지(9언어 데이터·`LocalizedNames.get` en 폴백으로 보증, JVM 테스트 커버).

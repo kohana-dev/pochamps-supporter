@@ -124,6 +124,8 @@
     <string name="notif_text">Affiche des infos sur le Pokémon adverse visible à l\'écran.</string>
     <string name="notif_action_exit">Quitter</string>
     <string name="overlay_ability_prefix">Talent : </string>
+    <string name="overlay_ability_back">←</string>
+    <string name="overlay_ability_no_desc">Aucune description</string>
     <string name="overlay_more_detail">Plus ▸ (stats · confrontations)</string>
     <string name="overlay_change_candidate">Lequel ? Changer ▸</string>
     <string name="overlay_mega_base">Base</string>
